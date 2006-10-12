@@ -45,11 +45,10 @@ type JavaScriptProgram =
     [Statement]
 
 type VariableBinding
-    = ((String, Maybe Expression), Maybe Expression)
---   (identifier, type)
+    = (String, Maybe Expression)
 
 data Statement
-    = STVariableDefinition { varDefIsConst :: Bool, varDefBindings :: [VariableBinding] }
+    = STVariableDefinition { varDefBindings :: [VariableBinding] }
     | STFunctionDefinition { funcDefFunc :: Value }
     | STEmpty
     | STExpression Expression

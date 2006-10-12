@@ -26,12 +26,12 @@ tidyNumber num@(Number (Double x))
 tidyNumber x = x
 
 instance Eval Statement where
-    eval (STVariableDefinition isConst bindings) =
+    eval (STVariableDefinition bindings) =
         do mapM bindVariable bindings
            return Void
-        where bindVariable ((name, Nothing), Nothing) =
+        where bindVariable (name, Nothing) =
                   defineVar name Undefined
-              bindVariable ((name, Nothing), Just expr) =
+              bindVariable (name, Just expr) =
                   eval expr >>= getValue >>= defineVar name
 
     eval (STFunctionDefinition { funcDefFunc = function@Function { funcName = Just name } }) =
@@ -82,7 +82,7 @@ instance Eval Statement where
                                 evalForBlock condition block update value
                         else return lastValue
 
-    eval (STForIn (STVariableDefinition { varDefBindings = [((name, _), _)] }) object block) =
+    eval (STForIn (STVariableDefinition { varDefBindings = [(name, _)] }) object block) =
         withCC (CBreak Nothing) 
                (do object <- readRef =<< evalR object
                    props <- liftAll $ return $ map fst $ properties object

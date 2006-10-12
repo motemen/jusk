@@ -367,10 +367,6 @@ opString op = do reservedOp op
 --- Comma Expressions
 expression :: ParserParameter -> Parser Expression
 expression p = liftM List $ (assignmentExpression p) `sepBy` comma
-
---- Type Expressions
-typeExpression :: ParserParameter -> Parser Expression
-typeExpression p = nonAssignmentExpression p
 -- }}}
 
 -- Statements {{{
@@ -430,12 +426,9 @@ expressionStatement = ((reserved "function" <|> reservedOp "{") >> fail "")
                   <|> do expr <- expression AllowIn
                          return $ STExpression expr
 
---- Super Statement
--- TODO
-
 --- Block Statement
 block :: Parser Statement
-block = liftM STBlock (braces directives) <?> "block"
+block = liftM STBlock (many $ statement AllowIn) <?> "block"
 
 --- Labeled Statements
 --- If Statement
@@ -473,13 +466,13 @@ forStatement p =
        symbol "("
        (try $ do init <- forInitializer
                  semi
-                 cond <- optionalExpression
+                 cond <- expressionOpt
                  semi
-                 updt <- optionalExpression
+                 updt <- expressionOpt
                  symbol ")"
                  block <- substatement p
                  return $ STFor init cond updt block)
-           <|> (do binding <- forInBinding
+           <|> (do binding <- variableStatement NoIn -- TODO: leftHandSideExpression
                    reserved "in"
                    object <- expression AllowIn
                    symbol ")"
@@ -487,21 +480,13 @@ forStatement p =
                    return $ STForIn binding object block)
 
 forInitializer :: Parser Statement
-forInitializer = -- do { attributes; variableDefinition NoIn }
-                 (variableDefinition NoIn)
-             <|> (liftM STExpression $ expression NoIn)
-             <|> (return STEmpty)
+forInitializer =
+    option STEmpty
+           (variableStatement NoIn <|> (liftM STExpression $ expression NoIn))
 
-optionalExpression :: Parser Expression
-optionalExpression = (expression AllowIn)
-                 <|> (return $ List [])
-
-forInBinding :: Parser Statement
-forInBinding = --do { attributes; variableDefinitionKind; variableDefinition NoIn }
-               (do isConst <- variableDefinitionKind
-                   binding <- variableBinding NoIn
-                   return $ STVariableDefinition isConst [binding])
-           <|> liftM STExpression postfixExpression
+expressionOpt :: Parser Expression
+expressionOpt = (expression AllowIn)
+            <|> (return $ List [])
 
 --- With Statement
 --- Continue and Break Statements
@@ -546,77 +531,34 @@ catchClause =
        block <- block
        return (param, block)
 
---- Directives
---- http://www.mozilla.org/js/language/js20/core/statements.html#directive
-directive :: ParserParameter -> Parser Statement
-directive p = (try $ annotatableDirective p)
-          <|> (try $ statement p)
---        <|> do { attributes; annotatableDirective }
---        <|> do { attributes; braces directives }
---        <|> do { includeDirective; semi }
---        <|> do { pragma; semi }
-
-annotatableDirective :: ParserParameter -> Parser Statement
-annotatableDirective p = do { x <- variableDefinition AllowIn; semicolon p; return x }
-                     <|> functionDeclaration
---                   <|> classDefinition
---                   <|> nameSpaceDefinition `followedBy` semi
---                   <|> importDirective `followedBy` semi
---                   <|> expretDefinition `followedBy` semi
---                   <|> useDirective `followedBy` semi
---                   <?> "annotatableDirective(" ++ show p ++ ")"
-
-directives :: Parser [Statement]
-directives =
-    do ds <- many $ try $ directive Full
-       d <- ((directive Abbrev >>= return . return) <|> return [])
-       return $ filter notEmptyStatement (ds ++ d)
-    where notEmptyStatement (STExpression (List [])) = False
-          notEmptyStatement _ = True
-
 --- Programs
 program :: Parser JavaScriptProgram
-program = do {- ps <- many packageDefinition -} -- TODO
-             ds <- directives
-             return ds
+program = many (statement AllowIn <|> functionDeclaration)
 -- }}}
 
--- Variables {{{
--- http://www.mozilla.org/js/language/js20/core/variables.html
---- Variable Definitions
-variableDefinition :: ParserParameter -> Parser Statement
-variableDefinition p =
-    do isConst <- (reserved "const" >> return True) <|> (reserved "var" >> return False)
-       bindings <- (variableBinding p) `sepBy` comma
-       return $ STVariableDefinition isConst bindings
+--- Variable statement
+variableStatement :: ParserParameter -> Parser Statement
+variableStatement p =
+    do reserved "var"
+       bindings <- variableDeclarationList p
+       return $ STVariableDefinition bindings
     <?> "variable definition"
 
-variableDefinitionKind :: Parser Bool
-variableDefinitionKind = (reserved "const" >> return True) <|> (reserved "var" >> return False)
+variableDeclarationList :: ParserParameter -> Parser [VariableBinding]
+variableDeclarationList p =
+    (variableDeclaration p) `sepBy` comma
 
-variableBinding :: ParserParameter -> Parser VariableBinding
-variableBinding p =
-    do var <- typedIdentifier p
-       init <- variableInitialisation p
+variableDeclaration :: ParserParameter -> Parser VariableBinding
+variableDeclaration p =
+    do var <- identifierString
+       init <- initialiserOpt p
        return (var, init)
 
-variableInitialisation :: ParserParameter -> Parser (Maybe Expression)
-variableInitialisation p =
+initialiserOpt :: ParserParameter -> Parser (Maybe Expression)
+initialiserOpt p =
     option Nothing
-           (reservedOp "=" >> variableInitialiser p >>= return . return)
-                
-variableInitialiser :: ParserParameter -> Parser Expression
-variableInitialiser p = assignmentExpression p
---                  <|> attributeCombination
-
-typedIdentifier :: ParserParameter -> Parser (String, Maybe Expression)
-typedIdentifier p =
-    do name <- identifierString
-       option (name, Nothing)
-              (do colon
-                  varType <- typeExpression p
-                  return (name, Just varType))
--- }}}
+           (do reservedOp "="
+               liftM Just $ assignmentExpression p)
 
 -- Functions {{{
 --- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/13_Function_Definition.html
