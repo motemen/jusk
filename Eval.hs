@@ -34,8 +34,7 @@ instance Eval Statement where
               bindVariable ((name, Nothing), Just expr) =
                   eval expr >>= getValue >>= defineVar name
 
-    eval (STFunctionDefinition { funcDefType = Nothing,
-                               funcDefFunc = function@Function { funcName = Just name } }) =
+    eval (STFunctionDefinition { funcDefFunc = function@Function { funcName = Just name } }) =
         defineVar name function
 
     eval STEmpty =
@@ -83,11 +82,11 @@ instance Eval Statement where
                                 evalForBlock condition block update value
                         else return lastValue
 
-    eval (STForIn (STVariableDefinition { varDefIsConst = isConst, varDefBindings = [((name, _), _)] }) object block) =
+    eval (STForIn (STVariableDefinition { varDefBindings = [((name, _), _)] }) object block) =
         withCC (CBreak Nothing) 
                (do object <- readRef =<< evalR object
                    props <- liftAll $ return $ map fst $ properties object
-                   liftM last $ mapM (\n -> do binding <- bindParamArgs [(if isConst then Const name else NonConst name)] [String n]
+                   liftM last $ mapM (\n -> do binding <- bindParamArgs [name] [String n]
                                                pushScope binding
                                                value <- eval block
                                                popScope
@@ -271,7 +270,7 @@ evalOperator _ _ =
 
 callFunction :: Value -> Value -> [Value] -> Evaluate Value
 callFunction this (Function { funcParam = param, funcBody = body }) args =
-    do paramArgs <- liftAll $ mapM zipArg $ zip (map varName (fst param)) (args ++ repeat Undefined)
+    do paramArgs <- liftAll $ mapM zipArg $ zip param (args ++ repeat Undefined)
        binding <- liftAll $ newIORef $ paramArgs
        pushFrame this binding
        value <- withCC CReturn (eval body)

@@ -153,4 +153,4 @@ bindParamArgs params args =
     where zipArg :: (Parameter, Value) -> IO (String, IORef Value)
           zipArg (param, arg) = 
               do argRef <- newIORef arg
-                 return (varName param, argRef)
+                 return (param, argRef)

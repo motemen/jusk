@@ -542,7 +542,7 @@ tryStatement =
 catchClause :: Parser (Parameter, Statement)
 catchClause =
     do reserved "catch"
-       param <- parens parameter
+       param <- parens identifierString
        block <- block
        return (param, block)
 
@@ -558,7 +558,7 @@ directive p = (try $ annotatableDirective p)
 
 annotatableDirective :: ParserParameter -> Parser Statement
 annotatableDirective p = do { x <- variableDefinition AllowIn; semicolon p; return x }
-                     <|> functionDefinition
+                     <|> functionDeclaration
 --                   <|> classDefinition
 --                   <|> nameSpaceDefinition `followedBy` semi
 --                   <|> importDirective `followedBy` semi
@@ -622,6 +622,13 @@ typedIdentifier p =
 --- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/13_Function_Definition.html
 
 --- Function Expressions
+functionDeclaration :: Parser Statement
+functionDeclaration =
+    do reserved "function"
+       name <- identifierString
+       function <- functionCommon
+       return $ STFunctionDefinition { funcDefFunc = function { funcName = Just name } }
+
 functionExpression :: Parser Expression
 functionExpression =
     do reserved "function"
@@ -630,66 +637,12 @@ functionExpression =
        return $ Literal $ Function name params body
     <?> "function expression"
 
---- Syntax
-functionDefinition :: Parser Statement
-functionDefinition =
-    do reserved "function"
-       (getOrSet, name) <- functionName
-       function <- functionCommon
-       return $ STFunctionDefinition { funcDefType = getOrSet, funcDefFunc = function { funcName = Just name } }
-
-functionName :: Parser (Maybe GetterOrSetter, String)
-functionName =
-    do getOrSet <- (do { reserved "get"; return $ Just Getter })
-               <|> (do { reserved "set"; return $ Just Setter })
-               <|> (return Nothing)
-       name <- identifierString
-       return (getOrSet, name)
-
 functionCommon :: Parser Value
 functionCommon =
-    do params <- parens parameters
---     resultType <- result
+    do params <- parens formalParameterListOpt
        body <- block
        return $ Function Nothing params body
 
---- Parameters
---- http://www.mozilla.org/js/language/js20/core/functions.html#N-Parameters
-parameters :: Parser Parameters
-parameters = option ([], Nothing) nonemptyParameters
-
-nonemptyParameters :: Parser Parameters
-nonemptyParameters =
-    (do headP <- parameterInit
-        (tailP, rest) <- option ([], Nothing) (comma >> nonemptyParameters)
-        return (headP:tailP, rest))
-    <|> (do rest <- restParameter
-            return ([], rest))
-
-parameter :: Parser Parameter
-parameter =
-    do constOrNot <- parameterAttributes
---     typedIdentifier
-       name <- identifierString
-       return $ constOrNot name
-    <?> "parameter"
-
-parameterInit :: Parser Parameter
-parameterInit =
-    do param <- parameter
-       option param
-              (do reservedOp "="
-                  assignmentExpression AllowIn
-                  return param)
-
-restParameter :: Parser (Maybe RestParameter)
-restParameter =
-    do reservedOp "..."
-       option (Just Nothing)
-              (do constOrNot <- parameterAttributes
-                  name <- identifierString
-                  return $ (Just . Just . constOrNot) name)
-
-parameterAttributes :: Parser (String -> Parameter)
-parameterAttributes = option NonConst (reserved "const" >> return Const)
+formalParameterListOpt :: Parser Parameters
+formalParameterListOpt = identifierString `sepBy` comma
 -- }}}

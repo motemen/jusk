@@ -50,7 +50,7 @@ type VariableBinding
 
 data Statement
     = STVariableDefinition { varDefIsConst :: Bool, varDefBindings :: [VariableBinding] }
-    | STFunctionDefinition { funcDefType :: Maybe GetterOrSetter, funcDefFunc :: Value }
+    | STFunctionDefinition { funcDefFunc :: Value }
     | STEmpty
     | STExpression Expression
 --  | STSuper
@@ -141,17 +141,10 @@ data PropertyAttribute
     deriving (Show, Eq)
 
 type Parameters =
-    ([Parameter], Maybe RestParameter)
+    [Parameter]
 
-data Parameter
-    = NonConst { varName :: String }
-    | Const { varName :: String }
-    deriving Show
-
-data GetterOrSetter
-    = Getter
-    | Setter
-    deriving Show
+type Parameter =
+    String
 
 type RestParameter =
     Maybe Parameter
