@@ -250,41 +250,11 @@ callExpression =
 
 arguments :: Parser Expression
 arguments =
-    do List args <- (try $ do { (reservedOp "(" >> reservedOp ")"); return $ List [] })
-                <|> (try parenListExpression)
-                <|> (parens expressionWithRest)
-       return $ Operator "()" args
+    liftM (Operator "()") (parens $ (assignmentExpression AllowIn) `sepBy` comma)
 
 leftHandSideExpression :: Parser Expression
 leftHandSideExpression = (try newExpression)
                      <|> callExpression
-
---- Qualified Identifiers
-simpleQualifiedIdentifier :: Parser Expression
-simpleQualifiedIdentifier =
-    (do n <- reservedNamespace
-        reservedOp "::"
-        i <- identifierString
-        return $ QualifiedIdentifier (n, i))
-    <|> (do i <- identifier
-            option i (do reservedOp "::"
-                         i' <- identifierString
-                         return $ QualifiedIdentifier (i, i')))
-                               
-expressionQualifiedIdentifier :: Parser Expression
-expressionQualifiedIdentifier =
-    do e <- parenExpression
-       reservedOp "::"
-       i <- identifierString
-       return $ QualifiedIdentifier (e, i)
-
-qualifiedIdentifier :: Parser Expression
-qualifiedIdentifier = simpleQualifiedIdentifier
-                  <|> expressionQualifiedIdentifier
-
-reservedNamespace :: Parser Expression
-reservedNamespace = keyword "public"
-                <|> keyword "private"
 
 parenExpression :: Parser Expression
 parenExpression = parens (assignmentExpression AllowIn)
@@ -292,95 +262,12 @@ parenExpression = parens (assignmentExpression AllowIn)
 parenListExpression :: Parser Expression
 parenListExpression = liftM List (parens $ (assignmentExpression AllowIn) `sepBy` comma)
 
---- Function Expressions
-functionExpression :: Parser Expression
-functionExpression =
-    do reserved "function"
-       name <- option Nothing (liftM Just identifierString)
-       Function { funcParam = params, funcBody = body } <- functionCommon
-       return $ Literal $ Function name params body
-    <?> "function expression"
-
---- Super Expressions
-superExpression :: Parser Expression
-superExpression =
-    do s <- keyword "super"
-       option s (do { args <- parenExpression; return $ Operator "super" [args] })
-
 --- Postfix Expressions
--- TODO: new Hoge(a,b)
 postfixExpression :: Parser Expression
 postfixExpression =
-    do e1 <- attributeExpression
-         <|> (try $ do e1 <- primaryExpression
-                         <|> expressionQualifiedIdentifier
-                         <|> fullNewExpression
-                         <|> do { e <- superExpression; o <- propertyOperator; return $ pushArg e o }
-                       e2 <- many operatorOrArguments
-                       return $ foldl pushArg e1 e2)
-         <|> shortNewExpression
-       e2 <- many $ (do e1 <- ((do { reservedOp "++"; return $ Operator "_++" [] })
-                           <|> (do { reservedOp "--"; return $ Operator "_--" [] }))
-                        e2 <- many operatorOrArguments
-                        return $ e1:e2)
-       return $ foldl pushArg e1 (foldl (++) [] e2)
-    where operatorOrArguments = propertyOperator <|> arguments
-
-attributeExpression :: Parser Expression
-attributeExpression =
-    do x <- simpleQualifiedIdentifier
-       xs <- many (propertyOperator <|> arguments)
-       return $ foldl pushArg x xs
-
-fullNewExpression :: Parser Expression
-fullNewExpression =
-    do reserved "new"
-       e <- fullNewSubexpression
-       a <- arguments
-       return $ Operator "new" [e, a]
-
-fullNewSubexpression :: Parser Expression
-fullNewSubexpression = primaryExpression
-                   <|> qualifiedIdentifier
-                   <|> fullNewExpression
-                   <|> do { e <- fullNewSubexpression; o <- propertyOperator; return $ pushArg e o }
-                   <|> do { e <- superExpression;      o <- propertyOperator; return $ pushArg e o }
-
-shortNewExpression :: Parser Expression
-shortNewExpression =
-    do reserved "new"
-       e <- shortNewSubexpression
-       return $ Operator "new" [e]
-
-shortNewSubexpression :: Parser Expression
-shortNewSubexpression = fullNewSubexpression
-                    <|> shortNewExpression
-
---- Property Operators
-propertyOperator :: Parser Expression
-propertyOperator = (do reservedOp "."
-                       Identifier i <- qualifiedIdentifier
-                       return $ Operator "[]" [Literal $ String i])
-               <|> brackets
-
-brackets :: Parser Expression
-brackets = (try $ do { (reservedOp "[" >> reservedOp "]"); return $ Operator "[]" [] })
-       <|> (do expr <- squares (expression AllowIn <|> expressionWithRest)
-               return $ Operator "[]" [expr])
-
-expressionWithRest :: Parser Expression
-expressionWithRest =
-    restExpression
-    <|> do List list <- expression AllowIn
-           comma
-           rest <- restExpression
-           return $ List $ list ++ [rest]
-
-restExpression :: Parser Expression
-restExpression =
-    do reservedOp "..."
-       e <- assignmentExpression AllowIn
-       return $ Operator "..." [e]
+    do e <- leftHandSideExpression
+       option e (do { reservedOp "++"; return $ Operator "_++" [e] }
+                 <|> do { reservedOp "--"; return $ Operator "_--" [e] }) 
 
 --- Unary Operators
 operatorWithArg1 :: String -> Parser Expression -> Parser Expression
@@ -460,19 +347,22 @@ nonAssignmentExpression p =
 --- Assignment Operators
 assignmentExpression :: ParserParameter -> Parser Expression
 assignmentExpression p =
-    try (do l <- postfixExpression
-            choice [
-                   (do reservedOp "="
-                       r <- assignmentExpression p
-                       return $ Let l r),
-                   (do Punctuator op <- compoundAssignment <|> logicalAssignment
-                       r <- assignmentExpression p
-                       return $ Let l $ Operator (init op) [l, r])
-               ])
+    try (do l <- leftHandSideExpression
+            (do reservedOp "="
+                r <- assignmentExpression p
+                return $ Let l r)
+             <|> (do op <- compoundAssignment
+                     r <- assignmentExpression p
+                     return $ Let l $ Operator (init op) [l, r]))
     <|> conditionalExpression p
 
-compoundAssignment = choice $ map operator ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
-logicalAssignment  = choice $ map operator ["&&=", "^^=", "||="]
+compoundAssignment, logicalAssignment :: Parser String
+compoundAssignment = choice $ map opString ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
+logicalAssignment  = choice $ map opString ["&&=", "^^=", "||="]
+
+opString :: String -> Parser String
+opString op = do reservedOp op
+                 return op
 
 --- Comma Expressions
 expression :: ParserParameter -> Parser Expression
@@ -729,10 +619,18 @@ typedIdentifier p =
 -- }}}
 
 -- Functions {{{
--- http://www.mozilla.org/js/language/js20/core/functions.html
+--- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/13_Function_Definition.html
+
+--- Function Expressions
+functionExpression :: Parser Expression
+functionExpression =
+    do reserved "function"
+       name <- option Nothing (liftM Just identifierString)
+       Function { funcParam = params, funcBody = body } <- functionCommon
+       return $ Literal $ Function name params body
+    <?> "function expression"
 
 --- Syntax
---- http://www.mozilla.org/js/language/js20/core/functions.html#N-FunctionCommon
 functionDefinition :: Parser Statement
 functionDefinition =
     do reserved "function"
