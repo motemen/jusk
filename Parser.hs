@@ -217,6 +217,48 @@ objectLiteralPair =
        expr <- assignmentExpression AllowIn
        return (name, expr)
 
+--- Left-Hand-Side Expressions
+memberExpression :: Parser Expression
+memberExpression =
+    do e <- (primaryExpression
+             <|> functionExpression
+             <|> do reserved "new"
+                    e <- memberExpression
+                    List args <- arguments
+                    return $ Operator "new" (e:args))
+       ps <- many (squares (expression AllowIn)
+                   <|> (do reservedOp "."
+                           liftM (Literal . String) identifierString))
+       return $ foldl (\e p -> Operator "[]" [e,p]) e ps
+
+newExpression :: Parser Expression
+newExpression =
+    (do reserved "new"
+        e <- newExpression 
+        return $ Operator "new" [e])
+    <|> memberExpression
+
+callExpression :: Parser Expression
+callExpression =
+    do e <- memberExpression
+       a <- arguments
+       ps <- many $ (arguments
+                     <|> (squares $ expression AllowIn)
+                     <|> (do reservedOp "."
+                             liftM (Literal . String) identifierString))
+       return $ foldl pushArg (pushArg e a) ps
+
+arguments :: Parser Expression
+arguments =
+    do List args <- (try $ do { (reservedOp "(" >> reservedOp ")"); return $ List [] })
+                <|> (try parenListExpression)
+                <|> (parens expressionWithRest)
+       return $ Operator "()" args
+
+leftHandSideExpression :: Parser Expression
+leftHandSideExpression = (try newExpression)
+                     <|> callExpression
+
 --- Qualified Identifiers
 simpleQualifiedIdentifier :: Parser Expression
 simpleQualifiedIdentifier =
@@ -325,13 +367,6 @@ brackets :: Parser Expression
 brackets = (try $ do { (reservedOp "[" >> reservedOp "]"); return $ Operator "[]" [] })
        <|> (do expr <- squares (expression AllowIn <|> expressionWithRest)
                return $ Operator "[]" [expr])
-
-arguments :: Parser Expression
-arguments =
-    do List args <- (try $ do { (reservedOp "(" >> reservedOp ")"); return $ List [] })
-                <|> (try parenListExpression)
-                <|> (parens expressionWithRest)
-       return $ Operator "()" args
 
 expressionWithRest :: Parser Expression
 expressionWithRest =
