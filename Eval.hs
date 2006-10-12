@@ -202,7 +202,8 @@ instance Eval Expression where
         do constructor <- getVar "Object"
            object <- new constructor []
            objRef <- liftAll $ newIORef object
-           mapM ((\(n,e) -> do p <- getValue =<< eval e
+           mapM ((\(n,e) -> do n <- toString =<< eval n
+                               p <- getValue =<< eval e
                                putProp objRef n p)) pairs
            return $ Ref objRef
     
@@ -362,7 +363,7 @@ toNumber (Number num) =
     return num
 
 toNumber (String string) =
-    case runLex numberLiteral string of
+    case runLex numericLiteral string of
          Left _ -> return NaN
          Right (Literal (Number n)) -> return n
 

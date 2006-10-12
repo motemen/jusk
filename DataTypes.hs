@@ -77,7 +77,7 @@ data Expression
     | QualifiedIdentifier (Expression, String)
     | Literal Value
     | ArrayLiteral [Expression]
-    | ObjectLiteral [(String, Expression)]
+    | ObjectLiteral [(Expression, Expression)]
     | List [Expression]
     | LineBreak
     | EndOfInput

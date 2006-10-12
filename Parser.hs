@@ -34,17 +34,22 @@ lexer = T.makeTokenParser
             identStart = letter <|> oneOf "$_",
             identLetter = alphaNum <|> oneOf "$_",
             reservedNames = [
-                "as", "break", "case", "catch", "class", "const",
-                "continue", "default", "delete", "do", "else",
-                "export", "extends", "false", "finally", "for",
-                "function", "if", "import", "in", "instanceof",
-                "is", "namespace", "new", "null", "package",
-                "private", "public", "return", "super", "switch",
-                "this", "throw", "true", "try", "typeof", "use",
-                "var", "void", "while", "with",
-                "abstract", "debugger", "enum", "goto",
-                "implements", "interface", "native", "protected",
-                "synchronized", "throws", "transient", "volatile"
+                "break",  "else",  "new",  "var", 
+                "case",  "finally",  "return",  "void", 
+                "catch",  "for",  "switch",  "while", 
+                "continue",  "function",  "this",  "with", 
+                "default",  "if",  "throw", 
+                "delete",  "in",  "try", 
+                "do",  "instanceof",  "typeof", 
+                -- Future reserved
+                "abstract",  "enum",  "int",  "short", 
+                "boolean",  "export",  "interface",  "static", 
+                "byte",  "extends",  "long",  "super", 
+                "char",  "final",  "native",  "synchronized", 
+                "class",  "float",  "package",  "throws", 
+                "const",  "goto",  "private",  "transient", 
+                "debugger",  "implements",  "protected",  "volatile", 
+                "double",  "import",  "public"
             ],
             reservedOpNames = [
                 "!", "!=", "!==", "%", "%=", "&", "&&", "&&=",
@@ -101,88 +106,23 @@ pushArg :: Expression -> Expression -> Expression
 pushArg expr (Operator op args) = Operator op (expr:args)
 -- }}}
 
--- Expressions {{{
--- http://www.mozilla.org/js/language/js20/core/expressions.html
-
+-- Literals {{{
+-- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/7_Lexical_Conventions.html
 --- Identifiers
 identifier :: Parser Expression
 identifier = liftM Identifier identifierString
 
---- Qualified Identifiers
-simpleQualifiedIdentifier :: Parser Expression
-simpleQualifiedIdentifier =
-    (do n <- reservedNamespace
-        reservedOp "::"
-        i <- identifierString
-        return $ QualifiedIdentifier (n, i))
-    <|> (do i <- identifier
-            option i (do reservedOp "::"
-                         i' <- identifierString
-                         return $ QualifiedIdentifier (i, i')))
-                               
-expressionQualifiedIdentifier :: Parser Expression
-expressionQualifiedIdentifier =
-    do e <- parenExpression
-       reservedOp "::"
-       i <- identifierString
-       return $ QualifiedIdentifier (e, i)
+-- Literals
+literal :: Parser Expression
+literal = nullLiteral
+      <|> booleanLiteral
+      <|> numericLiteral
+      <|> stringLiteral
 
-qualifiedIdentifier :: Parser Expression
-qualifiedIdentifier = simpleQualifiedIdentifier
-                  <|> expressionQualifiedIdentifier
-
---- Primary Expressions
---- http://www.mozilla.org/js/language/js20/core/expressions.html#N-PrimaryExpression
-primaryExpression :: Parser Expression
-primaryExpression = (keyword "null")
-                <|> booleanLiteral
-                <|> numberLiteral
-                <|> stringLiteral
-                <|> (keyword "this")
---              <|> regularExpression
-                <|> reservedNamespace
-                <|> parenListExpression
-                <|> arrayLiteral
-                <|> objectLiteral
-                <|> functionExpression
-
-reservedNamespace :: Parser Expression
-reservedNamespace = keyword "public"
-                <|> keyword "private"
-
-parenExpression :: Parser Expression
-parenExpression = parens (assignmentExpression AllowIn)
-
-parenListExpression :: Parser Expression
-parenListExpression = liftM List (parens $ (assignmentExpression AllowIn) `sepBy` comma)
-
---- Function Expressions
-functionExpression :: Parser Expression
-functionExpression =
-    do reserved "function"
-       name <- option Nothing (liftM Just identifierString)
-       Function { funcParam = params, funcBody = body } <- functionCommon
-       return $ Literal $ Function name params body
-    <?> "function expression"
-
---- Object Literals
-objectLiteral :: Parser Expression
-objectLiteral = braces (objectLiteralPair `sepBy` comma) >>= return . ObjectLiteral
-            <?> "object literal"
-
-objectLiteralPair :: Parser (String, Expression)
-objectLiteralPair =
-    do name <- identifierString
-       colon
-       expr <- assignmentExpression AllowIn
-       return (name, expr)
-
---- Array Literals
-arrayLiteral :: Parser Expression
-arrayLiteral =
-    do exprs <- squares (assignmentExpression AllowIn `sepBy` comma)
-       return $ ArrayLiteral exprs
-    <?> "array"
+--- Null Literals
+nullLiteral :: Parser Expression
+nullLiteral = do reserved "null"
+                 return $ Literal Null
 
 --- Boolean Literals
 booleanLiteral :: Parser Expression
@@ -190,8 +130,18 @@ booleanLiteral = (reserved "true"  >> (return $ Literal $ Boolean True))
              <|> (reserved "false" >> (return $ Literal $ Boolean False))
              <?> "boolean"
 
+--- Numeric Literals
+numericLiteral :: Parser Expression
+numericLiteral =
+    do num <- naturalOrFloat
+       return $ Literal $ Number
+              $ case num of
+                     Left n -> Integer n
+                     Right n -> Double n
+    <?> "number"
+
 --- String Literals
--- code from libraries/parsec/Text/ParserCombinators/Parsec/Expression.hs
+-- some code from libraries/parsec/Text/ParserCombinators/Parsec/Expression.hs
 stringLiteral :: Parser Expression
 stringLiteral = liftM (Literal . String)
                       (do str <- (stringLiteralQuotedBy '"' <|> stringLiteralQuotedBy '\'')
@@ -216,14 +166,98 @@ hexEscape      = do char 'x'
 --           <|> char 'u' >> times 4 hexDigit
 --           <|> char 'U' >> times 8 hexDigit
 
---- Number Literals
-numberLiteral :: Parser Expression
-numberLiteral =
-    do num <- naturalOrFloat
-       return $ Literal $ Number
-              $ case num of
-                     Left n -> Integer n
-                     Right n -> Double n
+-- }}}
+
+-- Expressions {{{
+-- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/11_Expressions.html
+
+--- Primary Expressions
+primaryExpression :: Parser Expression
+primaryExpression = (keyword "this")
+                <|> identifier
+                <|> literal
+                <|> arrayLiteral
+                <|> objectLiteral
+                <|> parens (expression AllowIn)
+
+--- Array Literals
+arrayLiteral :: Parser Expression
+arrayLiteral =
+    (squares $ do el <- elisionOpt
+                  es <- option [] elementList
+                  return $ ArrayLiteral $ el ++ es)
+     <?> "array"
+
+elementList :: Parser [Expression]
+elementList =
+    do e <- assignmentExpression AllowIn
+       es <- option [] elementList1
+       return $ (e:es)
+
+elementList1 :: Parser [Expression]
+elementList1 =
+    do comma
+       el <- elisionOpt
+       (try $ do es <- elementList
+                 return $ el ++ es)
+        <|> return el
+
+elisionOpt :: Parser [Expression]
+elisionOpt = many comma >>= return . map (const $ Literal Undefined)
+
+--- Object Literals
+objectLiteral :: Parser Expression
+objectLiteral = braces (objectLiteralPair `sepBy` comma) >>= return . ObjectLiteral
+            <?> "object literal"
+
+objectLiteralPair :: Parser (Expression, Expression)
+objectLiteralPair =
+    do name <- stringLiteral <|> numericLiteral <|> (liftM (Literal . String) identifierString)
+       colon
+       expr <- assignmentExpression AllowIn
+       return (name, expr)
+
+--- Qualified Identifiers
+simpleQualifiedIdentifier :: Parser Expression
+simpleQualifiedIdentifier =
+    (do n <- reservedNamespace
+        reservedOp "::"
+        i <- identifierString
+        return $ QualifiedIdentifier (n, i))
+    <|> (do i <- identifier
+            option i (do reservedOp "::"
+                         i' <- identifierString
+                         return $ QualifiedIdentifier (i, i')))
+                               
+expressionQualifiedIdentifier :: Parser Expression
+expressionQualifiedIdentifier =
+    do e <- parenExpression
+       reservedOp "::"
+       i <- identifierString
+       return $ QualifiedIdentifier (e, i)
+
+qualifiedIdentifier :: Parser Expression
+qualifiedIdentifier = simpleQualifiedIdentifier
+                  <|> expressionQualifiedIdentifier
+
+reservedNamespace :: Parser Expression
+reservedNamespace = keyword "public"
+                <|> keyword "private"
+
+parenExpression :: Parser Expression
+parenExpression = parens (assignmentExpression AllowIn)
+
+parenListExpression :: Parser Expression
+parenListExpression = liftM List (parens $ (assignmentExpression AllowIn) `sepBy` comma)
+
+--- Function Expressions
+functionExpression :: Parser Expression
+functionExpression =
+    do reserved "function"
+       name <- option Nothing (liftM Just identifierString)
+       Function { funcParam = params, funcBody = body } <- functionCommon
+       return $ Literal $ Function name params body
+    <?> "function expression"
 
 --- Super Expressions
 superExpression :: Parser Expression
@@ -289,7 +323,7 @@ propertyOperator = (do reservedOp "."
 
 brackets :: Parser Expression
 brackets = (try $ do { (reservedOp "[" >> reservedOp "]"); return $ Operator "[]" [] })
-       <|> (do expr <- squares (listExpression AllowIn <|> expressionWithRest)
+       <|> (do expr <- squares (expression AllowIn <|> expressionWithRest)
                return $ Operator "[]" [expr])
 
 arguments :: Parser Expression
@@ -302,7 +336,7 @@ arguments =
 expressionWithRest :: Parser Expression
 expressionWithRest =
     restExpression
-    <|> do List list <- listExpression AllowIn
+    <|> do List list <- expression AllowIn
            comma
            rest <- restExpression
            return $ List $ list ++ [rest]
@@ -406,8 +440,8 @@ compoundAssignment = choice $ map operator ["*=", "/=", "%=", "+=", "-=", "<<=",
 logicalAssignment  = choice $ map operator ["&&=", "^^=", "||="]
 
 --- Comma Expressions
-listExpression :: ParserParameter -> Parser Expression
-listExpression p = liftM List $ (assignmentExpression p) `sepBy` comma
+expression :: ParserParameter -> Parser Expression
+expression p = liftM List $ (assignmentExpression p) `sepBy` comma
 
 --- Type Expressions
 typeExpression :: ParserParameter -> Parser Expression
@@ -468,7 +502,7 @@ emptyStatement =
 --- Expression Statement
 expressionStatement :: Parser Statement
 expressionStatement = ((reserved "function" <|> reservedOp "{") >> fail "")
-                  <|> do expr <- listExpression AllowIn
+                  <|> do expr <- expression AllowIn
                          return $ STExpression expr
 
 --- Super Statement
@@ -522,7 +556,7 @@ forStatement p =
                  return $ STFor init cond updt block)
            <|> (do binding <- forInBinding
                    reserved "in"
-                   object <- listExpression AllowIn
+                   object <- expression AllowIn
                    symbol ")"
                    block <- substatement p
                    return $ STForIn binding object block)
@@ -530,11 +564,11 @@ forStatement p =
 forInitializer :: Parser Statement
 forInitializer = -- do { attributes; variableDefinition NoIn }
                  (variableDefinition NoIn)
-             <|> (liftM STExpression $ listExpression NoIn)
+             <|> (liftM STExpression $ expression NoIn)
              <|> (return STEmpty)
 
 optionalExpression :: Parser Expression
-optionalExpression = (listExpression AllowIn)
+optionalExpression = (expression AllowIn)
                  <|> (return $ List [])
 
 forInBinding :: Parser Statement
@@ -563,7 +597,7 @@ returnStatement :: Parser Statement
 returnStatement =
     do reserved "return"
        liftM STReturn
-             (liftM Just (listExpression AllowIn) <|> mzero)
+             (liftM Just (expression AllowIn) <|> mzero)
 
 -- Throw Statement
 -- Try Statement
