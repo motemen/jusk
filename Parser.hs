@@ -373,14 +373,14 @@ expression p = liftM List $ (assignmentExpression p) `sepBy` comma
 -- http://www.mozilla.org/js/language/js20/core/statements.html
 -- XXX: This order
 statement :: ParserParameter -> Parser Statement
-statement p = (ifStatement p)
-          <|> (try block)
+statement p = block
+          <|> (variableStatement p)
+          <|> (ifStatement p)
           <|> (whileStatement p)
           <|> (forStatement p)
           <|> (continueStatement `followedBy` (semicolon p))
           <|> (breakStatement `followedBy` (semicolon p))
           <|> (returnStatement `followedBy` (semicolon p))
-          <|> (expressionStatement `followedBy` (semicolon p))
 --        <|> superStatement `followedBy` (semicolon p)
 --        <|> (block)
 --        <|> labeledStatement
@@ -389,6 +389,7 @@ statement p = (ifStatement p)
 --        <|> withStatement
 --        <|> throwStatement `followedBy` (semicolon p)
           <|> tryStatement
+          <|> (expressionStatement `followedBy` semi)
 --        <?> "statement(" ++ show p ++ ")"
 
 substatement :: ParserParameter -> Parser Statement
@@ -428,7 +429,7 @@ expressionStatement = ((reserved "function" <|> reservedOp "{") >> fail "")
 
 --- Block Statement
 block :: Parser Statement
-block = liftM STBlock (many $ statement AllowIn) <?> "block"
+block = liftM STBlock (braces $ many $ statement AllowIn) <?> "block"
 
 --- Labeled Statements
 --- If Statement
