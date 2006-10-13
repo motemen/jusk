@@ -57,12 +57,22 @@ instance Eval Statement where
     eval (STBlock directives) =
         liftM last $ mapM eval directives
     
+    eval (STDoWhile condition block) =
+        withCC (CBreak Nothing)
+               (evalDoWhileBlock condition block Void)
+        where evalDoWhileBlock condition block lastValue =
+                  do value <- withCC (CContinue Nothing) (eval block)
+                     cond <- eval condition
+                     if fromValue cond
+                        then evalDoWhileBlock condition block value
+                        else return lastValue
+
     eval (STWhile condition block) =
         withCC (CBreak Nothing)
                (evalWhileBlock condition block Void)
         where evalWhileBlock condition block lastValue =
-                  do value <- eval condition
-                     if fromValue value
+                  do cond <- eval condition
+                     if fromValue cond
                         then do value <- withCC (CContinue Nothing) (eval block)
                                 evalWhileBlock condition block value
                         else return lastValue

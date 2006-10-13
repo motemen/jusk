@@ -52,9 +52,8 @@ data Statement
     | STFunctionDefinition { funcDefFunc :: Value }
     | STEmpty
     | STExpression Expression
---  | STSuper
     | STBlock [Statement]
---  | STLabeled
+--  | STLabeled String Statement
     | STIf Expression Statement (Maybe Statement)
 --  | STSwitch 
     | STDoWhile Expression Statement

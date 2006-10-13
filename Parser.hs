@@ -62,11 +62,16 @@ lexeme p =
 
 whiteSpace :: Parser ()
 whiteSpace =
-    skipMany (simpleSpace <|> oneLineComment <|> multiLineComment <?> "")
+    skipMany (simpleSpace <|> lineTerminator <|> oneLineComment <|> multiLineComment <?> "")
 
 simpleSpace :: Parser ()
 simpleSpace =
-    skipMany1 (oneOf " \t") -- TODO: Unicode char
+    skipMany1 (oneOf " \t\v\f\b") -- TODO: Unicode char
+
+lineTerminator :: Parser ()
+lineTerminator =
+    do many1 $ oneOf "\r\n"
+       return ()
 
 oneLineComment :: Parser ()
 oneLineComment =
@@ -405,19 +410,20 @@ memberExpression =
              <|> functionExpression
              <|> do reserved "new"
                     e <- memberExpression
-                    List args <- arguments
+                    Operator _ args <- arguments
                     return $ Operator "new" (e:args))
        ps <- many (squares (expression AllowIn)
                    <|> (do reservedOp "."
-                           liftM (Literal . String) identifierString))
+                           liftM (Literal . String) identifierString)
+                   <?> "")
        return $ foldl (\e p -> Operator "[]" [e,p]) e ps
 
 newExpression :: Parser Expression
 newExpression =
-    (do reserved "new"
-        e <- newExpression 
-        return $ Operator "new" [e])
-    <|> memberExpression
+    try memberExpression
+    <|> (do reserved "new"
+            e <- newExpression 
+            return $ Operator "new" [e])
 
 callExpression :: Parser Expression
 callExpression =
@@ -426,7 +432,8 @@ callExpression =
        ps <- many $ (arguments
                      <|> (squares $ expression AllowIn)
                      <|> (do reservedOp "."
-                             liftM (Literal . String) identifierString))
+                             liftM (Literal . String) identifierString)
+                     <?> "")
        return $ foldl pushArg (pushArg e a) ps
 
 arguments :: Parser Expression
@@ -434,8 +441,7 @@ arguments =
     liftM (Operator "()") (parens $ (assignmentExpression AllowIn) `sepBy` comma)
 
 leftHandSideExpression :: Parser Expression
-leftHandSideExpression = (try newExpression)
-                     <|> callExpression
+leftHandSideExpression = (try callExpression) <|> newExpression
 
 parenExpression :: Parser Expression
 parenExpression = parens (assignmentExpression AllowIn)
@@ -565,9 +571,15 @@ statement = block
 --        <|> withStatement
 --        <|> labeledStatement
 --        <|> switchStatement
---        <|> throwStatement `followedBy` (semicolon p)
+--        <|> throwStatement
           <|> tryStatement
 
+semicolon :: Parser ()
+semicolon = (semi >> return ())
+        <|> lineTerminator
+        <|> eof
+
+{-
 semicolon :: ParserParameter -> Parser String
 semicolon Full = semi
              <|> (newline >> return ";")
@@ -575,6 +587,7 @@ semicolon _    = semi
              <|> (newline >> return ";")
              <|> (eof >> return ";")
              <|> return ";"
+-}
 
 --- Block
 block :: Parser Statement
