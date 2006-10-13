@@ -267,3 +267,11 @@ isReference _ = False
 isRef :: Value -> Bool
 isRef (Ref { }) = True
 isRef _ = False
+
+isPrimitive :: Value -> Bool
+isPrimitive Undefined   = True
+isPrimitive Null        = True
+isPrimitive (Boolean _) = True
+isPrimitive (Number _)  = True
+isPrimitive (String _)  = True
+isPrimitive _           = False

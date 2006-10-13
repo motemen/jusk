@@ -44,14 +44,6 @@ propAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
 propAttr object@(Object { }) p =
     return $ lookup p (attributes object)
 
-isPrimitive :: Value -> Bool
-isPrimitive Undefined   = True
-isPrimitive Null        = True
-isPrimitive (Boolean _) = True
-isPrimitive (Number _)  = True
-isPrimitive (String _)  = True
-isPrimitive _           = False
-
 assign :: Eq a => [(a, b)] -> a -> b -> [(a, b)]
 assign = flip assign' []
        where
