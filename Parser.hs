@@ -21,14 +21,17 @@ data ParserParameter
     | NoIn
     deriving Show
     
-type ParserState = SourcePos
+data ParserState = ParserState { stAllowLT :: Bool, stSourcePos :: SourcePos }
 
 type Parser a = GenParser Char ParserState a
+
+initialState :: ParserState
+initialState = ParserState { stAllowLT = True, stSourcePos = newPos "" (-1) (-1) }
 
 runLex :: Parser a -> String -> Either ParseError a
 runLex p input =
     runParser (do { whiteSpace; x <- p; eof; return x })
-              (newPos "" 0 0)
+              initialState 
               ""
               input
 
@@ -42,13 +45,22 @@ showError source err =
                                 (errorMessages err)]
 autoInsertSemi :: Parser ()
 autoInsertSemi =
-    do pos <- getPosition
-       setState pos
+    do st <- getState
+       pos <- getPosition
+       setState $ st { stSourcePos = pos }
 
 putBack :: [Char] -> Parser ()
 putBack toks =
     do input <- getInput
        setInput $ toks ++ input
+
+-- [No line terminator here]
+withNoLineTerminator :: Parser a -> Parser a
+withNoLineTerminator p =
+    do updateState $ \st -> st { stAllowLT = False }
+       x <- p
+       updateState $ \st -> st { stAllowLT = True }
+       return x
 -- }}}
 
 -- Lexer {{{
@@ -88,7 +100,10 @@ lexeme p =
 
 whiteSpace :: Parser ()
 whiteSpace =
-    skipMany (simpleSpace <|> lineTerminator <|> oneLineComment <|> multiLineComment <?> "")
+    do st <- getState
+       if stAllowLT st
+          then skipMany (simpleSpace <|> lineTerminator <|> oneLineComment <|> multiLineComment <?> "")
+          else skipMany (simpleSpace <|> oneLineComment <|> multiLineComment <?> "")
 
 simpleSpace :: Parser ()
 simpleSpace =
@@ -244,10 +259,10 @@ isReservedOp name =
 -- Identifiers & Reserved words
 -----------------------------------------------------------
 reserved name =
-    lexeme $ try $
+   (lexeme $ try $
     do{ string name
       ; notFollowedBy (alphaNum <|> oneOf "$_") <?> ("end of " ++ show name)
-      }
+      }) <?> ""
 
 identifierString =
    (lexeme $ try $
@@ -479,9 +494,11 @@ parenListExpression = liftM List (parens $ (assignmentExpression AllowIn) `sepBy
 --- Postfix Expressions
 postfixExpression :: Parser Expression
 postfixExpression =
-    do e <- leftHandSideExpression
-       option e (do { reservedOp "++"; return $ Operator "_++" [e] }
-                 <|> do { reservedOp "--"; return $ Operator "_--" [e] }) 
+    do e <- withNoLineTerminator leftHandSideExpression
+       e <- option e (do { reservedOp "++"; return $ Operator "_++" [e] }
+                      <|> do { reservedOp "--"; return $ Operator "_--" [e] }) 
+       whiteSpace
+       return e
 
 --- Unary Operators
 operatorWithArg1 :: String -> Parser Expression -> Parser Expression
@@ -604,6 +621,7 @@ statement = block
 semicolon :: Parser ()
 semicolon = (semi >> return ())
         <|> (symbol "}" >> putBack "}") 
+        <|> lineTerminator
         <|> do pos <- getPosition
                st <- getState 
                input <- getInput
@@ -611,10 +629,10 @@ semicolon = (semi >> return ())
                     _ | null input -> do setInput ";"
                                          semi 
                                          return ()
-                    _ | pos == st  -> do setInput (';':input)
+                    _ | pos == stSourcePos st
+                                   -> do setInput (';':input)
                                          semicolon
                     _ | otherwise  -> fail ""
-        <|> lineTerminator
 
 --- Block
 block :: Parser Statement
@@ -726,22 +744,25 @@ expressionOpt = (expression AllowIn)
 --- Continue and Break Statements
 continueStatement :: Parser Statement
 continueStatement =
-    do reserved "continue"
+    do withNoLineTerminator $ reserved "continue"
        label <- option Nothing (liftM Just identifierString)
+       semicolon
        return $ STContinue label
 
 breakStatement :: Parser Statement
 breakStatement =
-    do reserved "break"
+    do withNoLineTerminator $ reserved "break"
        label <- option Nothing (liftM Just identifierString)
+       semicolon
        return $ STBreak label
 
 --- Return Statement
 returnStatement :: Parser Statement
 returnStatement =
-    do reserved "return"
-       liftM STReturn
-             (liftM Just (expression AllowIn) <|> mzero)
+    do withNoLineTerminator $ reserved "return"
+       expr <- option Nothing (liftM Just (try $ expression AllowIn))
+       semicolon
+       return $ STReturn expr
 
 -- Throw Statement
 -- Try Statement
@@ -791,7 +812,6 @@ functionExpression =
        name <- option Nothing (liftM Just identifierString)
        Function { funcParam = params, funcBody = body } <- functionCommon
        return $ Literal $ Function name params body
-    <?> "function expression"
 
 functionCommon :: Parser Value
 functionCommon =
