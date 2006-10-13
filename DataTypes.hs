@@ -64,7 +64,7 @@ data Statement
     | STContinue (Maybe String)
     | STBreak (Maybe String)
     | STReturn (Maybe Expression)
---  | STThrow
+    | STThrow Expression
     | STTry { tryClause :: Statement, tryCatchClause :: Maybe (Parameter, Statement), tryFinallyClause :: Maybe Statement }
     deriving Show
 

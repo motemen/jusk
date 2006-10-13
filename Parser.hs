@@ -615,7 +615,7 @@ statement = block
 --      <|> withStatement
 --      <|> labeledStatement
 --      <|> switchStatement
---      <|> throwStatement
+        <|> throwStatement
         <|> tryStatement
 
 semicolon :: Parser ()
@@ -765,6 +765,13 @@ returnStatement =
        return $ STReturn expr
 
 -- Throw Statement
+throwStatement :: Parser Statement
+throwStatement =
+    do withNoLineTerminator $ reserved "throw"
+       expr <- expression AllowIn
+       semicolon
+       return $ STThrow expr
+
 -- Try Statement
 tryStatement :: Parser Statement
 tryStatement =

@@ -113,6 +113,10 @@ instance Eval Statement where
         do value <- maybe (return Undefined) eval expr
            returnCont CReturn value
 
+    eval (STThrow expr) =
+        do value <- eval expr
+           returnCont CThrow value
+
     eval (STTry tryStatement catchClause finallyClause) =
         do e <- withCC CThrow (eval tryStatement)
            v1 <- case e of

@@ -56,9 +56,9 @@ runRepl =
        return ()
     where setupCatchAndRunRepl =
               do e <- callCC $ \cc -> do { pushCont cc CThrow; return Void }
-                 when (isException e)
-                      (do liftAll $ print $ exceptionBody e
-                          setupCatchAndRunRepl)
+                 unless (isVoid e)
+                        (do when (isException e) (liftAll $ print $ exceptionBody e)
+                            setupCatchAndRunRepl)
                  runRepl'
 
 main :: IO ()
