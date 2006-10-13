@@ -40,6 +40,15 @@ showError source err =
               take (sourceColumn pos - 1) (repeat '.') ++ "^",
               showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input"
                                 (errorMessages err)]
+autoInsertSemi :: Parser ()
+autoInsertSemi =
+    do pos <- getPosition
+       setState pos
+
+putBack :: [Char] -> Parser ()
+putBack toks =
+    do input <- getInput
+       setInput $ toks ++ input
 -- }}}
 
 -- Lexer {{{
@@ -88,9 +97,7 @@ simpleSpace =
 lineTerminator :: Parser ()
 lineTerminator =
     do many1 $ oneOf "\r\n"
-       pos <- getPosition
-       setState pos
-       return ()
+       autoInsertSemi
 
 oneLineComment :: Parser ()
 oneLineComment =
@@ -450,9 +457,9 @@ callExpression =
     do e <- memberExpression
        a <- arguments
        ps <- many $ (arguments
-                     <|> (squares $ expression AllowIn)
+                     <|> (liftM (Operator "[]" . return) $ squares $ expression AllowIn)
                      <|> (do reservedOp "."
-                             liftM (Literal . String) identifierString)
+                             liftM (Operator "[]" . return . Literal . String) identifierString)
                      <?> "")
        return $ foldl pushArg (pushArg e a) ps
 
@@ -596,6 +603,7 @@ statement = block
 
 semicolon :: Parser ()
 semicolon = (semi >> return ())
+        <|> (symbol "}" >> putBack "}") 
         <|> do pos <- getPosition
                st <- getState 
                input <- getInput
@@ -606,6 +614,7 @@ semicolon = (semi >> return ())
                     _ | pos == st  -> do setInput (';':input)
                                          semicolon
                     _ | otherwise  -> fail ""
+        <|> lineTerminator
 
 --- Block
 block :: Parser Statement
