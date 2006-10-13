@@ -20,7 +20,7 @@ import Init
 runText :: String -> Evaluate Value
 runText input =
     case runLex program input of
-         Left err -> liftAll $ do { hPutStr stderr "parse error at "; hPrint stderr err; return Void }
+         Left err -> liftAll $ do { hPutStrLn stderr "parse error:"; hPutStrLn stderr $ showError input err; return Void }
          Right program ->
              do liftAll $ do { hPutStr stderr "runText: program: "; mapM (hPrint stderr) program }
                 if null program

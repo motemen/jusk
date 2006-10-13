@@ -6,23 +6,40 @@
 
 -- Module definition {{{
 module Parser where
-import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec hiding(Parser)
+import Text.ParserCombinators.Parsec.Pos
+import Text.ParserCombinators.Parsec.Error
 import Data.Char (isDigit,digitToInt)
 import Monad
 import List
+import Foreign
 
 import DataTypes
 
 data ParserParameter
-    = Abbrev
-    | Full
-    | NoShortIf
-    | AllowIn
+    = AllowIn
     | NoIn
     deriving Show
     
+type ParserState = SourcePos
+
+type Parser a = GenParser Char ParserState a
+
 runLex :: Parser a -> String -> Either ParseError a
-runLex p input = parse (do { whiteSpace; x <- p; eof; return x }) "" input
+runLex p input =
+    runParser (do { whiteSpace; x <- p; eof; return x })
+              (newPos "" 0 0)
+              ""
+              input
+
+showError :: String -> ParseError -> String
+showError source err =
+    let pos = errorPos err
+        in unlines
+           $ [lines source !! (sourceLine pos - 1), 
+              take (sourceColumn pos - 1) (repeat '.') ++ "^",
+              showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input"
+                                (errorMessages err)]
 -- }}}
 
 -- Lexer {{{
@@ -71,6 +88,8 @@ simpleSpace =
 lineTerminator :: Parser ()
 lineTerminator =
     do many1 $ oneOf "\r\n"
+       pos <- getPosition
+       setState pos
        return ()
 
 oneLineComment :: Parser ()
@@ -100,7 +119,6 @@ naturalOrFloat  = lexeme (natFloat) <?> "number"
 float           = lexeme floating   <?> "float"
 integer         = lexeme int        <?> "integer"
 natural         = lexeme nat        <?> "natural"
-
 
 -- floats
 floating        = do{ n <- decimal 
@@ -189,10 +207,10 @@ number base baseDigit
 -- Operators & reserved ops
 -----------------------------------------------------------
 reservedOp name =   
-    lexeme $ try $
+   (lexeme $ try $
     do{ string name
-      ; notFollowedBy (oneOf "+-*/%?:&|^<>") <?> ("end of " ++ show name)
-      }
+      ; notFollowedBy (oneOf "+-*/%?:&|^<>=") <?> ("end of " ++ show name)
+      }) <?> ""
 
 {-
 operator =
@@ -225,17 +243,16 @@ reserved name =
       }
 
 identifierString =
-    lexeme $ try $
+   (lexeme $ try $
     do{ name <- ident
       ; if (isReservedName name)
          then unexpected ("reserved word " ++ show name)
          else return name
-      }
-    
+      }) <?> "identifier"
     
 ident           
-    = do{ c <- (letter <|> oneOf "$_")
-        ; cs <- many (alphaNum <|> oneOf "$_")
+    = do{ c <- (letter <|> oneOf "$_") <?> ""
+        ; cs <- many (alphaNum <|> oneOf "$_") <?> ""
         ; return (c:cs)
         }
     <?> "identifier"
@@ -278,6 +295,7 @@ operator :: String -> Parser Expression
 operator op =
     do reservedOp op
        return $ Punctuator op
+    <?> ""
 
 followedBy :: Show tok => GenParser tok st a -> GenParser tok st b -> GenParser tok st a
 p `followedBy` q = do { x <- p; q; return x }
@@ -320,7 +338,8 @@ booleanLiteral = (reserved "true"  >> (return $ Literal $ Boolean True))
 numericLiteral :: Parser Expression
 numericLiteral =
     do num <- naturalOrFloat
-       return $ Literal $ Number
+       return $ Literal
+              $ Number
               $ case num of
                      Left n -> Integer n
                      Right n -> Double n
@@ -360,11 +379,12 @@ hexEscape      = do char 'x'
 --- Primary Expressions
 primaryExpression :: Parser Expression
 primaryExpression = (keyword "this")
-                <|> identifier
                 <|> literal
+                <|> identifier
                 <|> arrayLiteral
                 <|> objectLiteral
                 <|> parens (expression AllowIn)
+                <?> ""
 
 --- Array Literals
 arrayLiteral :: Parser Expression
@@ -465,11 +485,12 @@ operatorWithArg1 op p =
 
 chainOperator :: [String] -> Parser Expression -> Parser Expression
 chainOperator ops p =
-    do a <- p
-       e <- many $ do Punctuator op <- choice $ map operator ops
-                      a <- p
-                      return $ Operator op [a]
-       return $ foldl pushArg a e
+    (do a <- p
+        e <- many $ do Punctuator op <- choice $ map operator ops
+                       a <- p
+                       return $ Operator op [a]
+        return $ foldl pushArg a e)
+     <?> ""
 
 unaryExpression :: Parser Expression
 unaryExpression = postfixExpression
@@ -480,7 +501,6 @@ unaryExpression = postfixExpression
               <|> operatorWithArg1 "--" postfixExpression
               <|> operatorWithArg1 "+" unaryExpression
               <|> operatorWithArg1 "-" unaryExpression
---            <|> operatorWithArg1 "-" negatedMinLong
               <|> operatorWithArg1 "~" unaryExpression
               <|> operatorWithArg1 "!" unaryExpression
 
@@ -551,43 +571,41 @@ opString :: String -> Parser String
 opString op = do reservedOp op
                  return op
 
---- Comma Expressions
+--- Comma Operator
 expression :: ParserParameter -> Parser Expression
-expression p = liftM List $ (assignmentExpression p) `sepBy` comma
+expression p = liftM List $ (assignmentExpression p) `sepBy1` comma
 -- }}}
 
 -- Statements {{{
 -- http://www.mozilla.org/js/language/js20/core/statements.html
 statement :: Parser Statement
 statement = block
-          <|> (variableStatement AllowIn)
-          <|> emptyStatement
-          <|> expressionStatement
-          <|> ifStatement
-          <|> iterationStatement
-          <|> continueStatement
-          <|> breakStatement
-          <|> returnStatement
---        <|> withStatement
---        <|> labeledStatement
---        <|> switchStatement
---        <|> throwStatement
-          <|> tryStatement
+        <|> (variableStatement AllowIn)
+        <|> emptyStatement
+        <|> expressionStatement
+        <|> ifStatement
+        <|> iterationStatement
+        <|> continueStatement
+        <|> breakStatement
+        <|> returnStatement
+--      <|> withStatement
+--      <|> labeledStatement
+--      <|> switchStatement
+--      <|> throwStatement
+        <|> tryStatement
 
 semicolon :: Parser ()
 semicolon = (semi >> return ())
-        <|> lineTerminator
-        <|> eof
-
-{-
-semicolon :: ParserParameter -> Parser String
-semicolon Full = semi
-             <|> (newline >> return ";")
-semicolon _    = semi
-             <|> (newline >> return ";")
-             <|> (eof >> return ";")
-             <|> return ";"
--}
+        <|> do pos <- getPosition
+               st <- getState 
+               input <- getInput
+               case () of
+                    _ | null input -> do setInput ";"
+                                         semi 
+                                         return ()
+                    _ | pos == st  -> do setInput (';':input)
+                                         semicolon
+                    _ | otherwise  -> fail ""
 
 --- Block
 block :: Parser Statement
@@ -627,7 +645,7 @@ emptyStatement =
 expressionStatement :: Parser Statement
 expressionStatement = ((reserved "function" <|> reservedOp "{") >> fail "")
                   <|> do expr <- expression AllowIn
-                         semi 
+                         semicolon
                          return $ STExpression expr
 
 --- The if Statement
@@ -743,7 +761,7 @@ finallyClause =
 
 --- Programs
 program :: Parser JavaScriptProgram
-program = many (statement <|> functionDeclaration)
+program = many (functionDeclaration <|> statement)
 -- }}}
 
 -- Functions {{{
@@ -756,6 +774,7 @@ functionDeclaration =
        name <- identifierString
        function <- functionCommon
        return $ STFunctionDefinition { funcDefFunc = function { funcName = Just name } }
+    <?> "function declaration"
 
 functionExpression :: Parser Expression
 functionExpression =
