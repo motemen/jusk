@@ -28,10 +28,8 @@ data Env
 
 data Frame
     = GlobalFrame { frBinding :: Binding, frThis :: Value }
-    | Class
-    | Instance
-    | WithFrame { frWithObj :: Value }
     | Activation { frBinding :: Binding, frThis :: Value }
+    | WithFrame { frWithObjRef :: IORef Value }
     deriving Show
 
 type Binding
@@ -60,7 +58,7 @@ data Statement
     | STWhile Expression Statement
     | STFor { forInitialize :: Statement, forCondition :: Expression, forUpdate :: Expression, forBlock :: Statement }
     | STForIn { forBinding :: Statement, forObject :: Expression, forBlock :: Statement }
---  | STWith
+    | STWith { withExpression :: Expression, withBlock :: Statement }
     | STContinue (Maybe String)
     | STBreak (Maybe String)
     | STReturn (Maybe Expression)
@@ -135,7 +133,6 @@ data PropertyAttribute
     = ReadOnly
     | DontEnum
     | DontDelete
---  | Internal
     deriving (Show, Eq)
 
 type Parameters =

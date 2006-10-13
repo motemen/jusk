@@ -612,7 +612,7 @@ statement = block
         <|> continueStatement
         <|> breakStatement
         <|> returnStatement
---      <|> withStatement
+        <|> withStatement
         <|> switchStatement
         <|> throwStatement
         <|> tryStatement
@@ -773,6 +773,14 @@ labelledStatement =
        colon
        st <- statement
        return $ STLabelled label st
+
+-- The with Statement
+withStatement :: Parser Statement
+withStatement =
+    do reserved "with"
+       expr <- parens $ expression AllowIn
+       st <- statement
+       return $ STWith expr st
 
 -- The switch Statement
 switchStatement :: Parser Statement

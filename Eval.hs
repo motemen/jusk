@@ -42,7 +42,7 @@ instance Eval Statement where
         return Void
     
     eval (STExpression expr) =
-        eval expr >>= getValue
+        getValue =<< eval expr
     
     eval (STIf condition thenStatement maybeElseStatement) =
         do c <- getValue =<< eval condition
@@ -55,8 +55,8 @@ instance Eval Statement where
     eval (STBlock []) =
         return Void
     
-    eval (STBlock directives) =
-        liftM last $ mapM eval directives
+    eval (STBlock statements) =
+        liftM last $ mapM eval statements
     
     eval (STDoWhile condition block) =
         withCC (CBreak Nothing)
@@ -114,6 +114,13 @@ instance Eval Statement where
         do value <- maybe (return Undefined) eval expr
            returnCont CReturn value
 
+    eval (STWith expr st) =
+        do Ref objRef <- getValue =<< eval expr
+           pushWithFrame objRef
+           value <- eval st
+           popFrame
+           return value
+
     eval (STLabelled label st) =
         do callCC
            $ \cc -> do pushCont cc (CBreak $ Just label)
@@ -164,10 +171,6 @@ instance Eval Statement where
            return $ v1 ||| v2
         where x ||| Void = x
               Void ||| y = y
-
-    eval s =
-        do liftAll $ putStrLn $ "eval: " ++ show s
-           return Void
 
 evalR :: (Eval a) => a -> Evaluate Value
 evalR x =
@@ -255,8 +258,8 @@ instance Eval Expression where
     
     eval (Let (Identifier name) right) =
         do bound <- isBound name
-           -- TODO: warn if not bound
            value <- getValue =<< eval right
+           -- TODO: warn if not bound
            if bound
               then setVar name value
               else do v <- defineVar name value

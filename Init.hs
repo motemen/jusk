@@ -12,6 +12,7 @@ import DataTypes
 import Context
 import qualified JSObject as Object
 import qualified JSArray as Array
+import Internal
 import Eval
 
 setupEnv :: Evaluate ()
