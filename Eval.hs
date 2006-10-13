@@ -120,6 +120,26 @@ instance Eval Statement where
                        pushCont cc (CContinue $ Just label)
                        eval st
 
+    eval (STSwitch expr statements) =
+        do value <- getValue =<< eval expr
+           withCC (CBreak Nothing) (evalSwitchStatement value statements Nothing Void)
+        where evalSwitchStatement :: Value -> [(Maybe Expression, Statement)] -> Maybe Statement -> Value -> Evaluate Value
+              evalSwitchStatement _ [] (Just st) _ =
+                  eval st
+                  
+              evalSwitchStatement _ [] Nothing lastValue =
+                  return lastValue
+
+              evalSwitchStatement value ((Nothing, st):cs) Nothing lastValue =
+                  evalSwitchStatement value cs (Just st) lastValue
+
+              evalSwitchStatement value clauses@((Just e, st):cs) defaultClause lastValue =
+                  do e <- getValue =<< eval e
+                     m <- comparisonOp (==) value e 
+                     if fromValue m
+                        then liftM last $ mapM (evalR . snd) clauses
+                        else evalSwitchStatement value cs defaultClause lastValue
+
     eval (STThrow expr) =
         do value <- eval expr
            returnCont CThrow value

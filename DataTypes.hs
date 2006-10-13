@@ -55,7 +55,7 @@ data Statement
     | STBlock [Statement]
     | STLabelled String Statement
     | STIf Expression Statement (Maybe Statement)
---  | STSwitch 
+    | STSwitch { swExpression :: Expression, swClauses :: [(Maybe Expression, Statement)] }
     | STDoWhile Expression Statement
     | STWhile Expression Statement
     | STFor { forInitialize :: Statement, forCondition :: Expression, forUpdate :: Expression, forBlock :: Statement }

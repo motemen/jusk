@@ -44,8 +44,7 @@ evalText flags input =
                  ePutStrLn $ showError input err
                  return Void
          Right program ->
-             do liftAll $ when (Debug `elem` flags)
-                               (mapM_ ePrint program)
+             do liftAll $ when (Debug `elem` flags) (mapM_ ePrint program)
                 if null program || ParseOnly `elem` flags
                    then return Void
                    else liftM last $ mapM eval program
@@ -60,7 +59,7 @@ evalFile flags filename =
 
 runRepl' :: [Flag] -> Evaluate ()
 runRepl' flags =
-    do line <- liftAll $ do { putStr "js> "; hFlush stdout; getLine }
+    do line <- liftAll (putStr "js> " >> hFlush stdout >> getLine)
        value <- evalText flags line
        unless (isVoid value)
               (do string <- toString value

@@ -613,7 +613,7 @@ statement = block
         <|> breakStatement
         <|> returnStatement
 --      <|> withStatement
---      <|> switchStatement
+        <|> switchStatement
         <|> throwStatement
         <|> tryStatement
 
@@ -635,7 +635,10 @@ semicolon = (semi >> return ())
 
 --- Block
 block :: Parser Statement
-block = liftM STBlock (braces $ many $ statement) <?> "block"
+block = liftM STBlock (braces statementListOpt) <?> "block"
+
+statementListOpt :: Parser [Statement]
+statementListOpt = many statement
 
 --- Variable statement
 variableStatement :: ParserParameter -> Parser Statement
@@ -770,6 +773,36 @@ labelledStatement =
        colon
        st <- statement
        return $ STLabelled label st
+
+-- The switch Statement
+switchStatement :: Parser Statement
+switchStatement =
+    do reserved "switch"
+       expr <- parens $ expression AllowIn
+       cases <- caseBlock
+       return $ STSwitch expr cases
+
+caseBlock :: Parser [(Maybe Expression, Statement)]
+caseBlock =
+    braces $ do clausesPre <- caseClausesOpt
+                clausesDefault <- option mzero (liftM return defaultCase)
+                clausesPost <- caseClausesOpt
+                return $ clausesPre ++ clausesDefault ++ clausesPost
+
+caseClausesOpt :: Parser [(Maybe Expression, Statement)]
+caseClausesOpt =
+    many $ do reserved "case"
+              expr <- expression AllowIn
+              colon
+              ss <- statementListOpt
+              return (Just expr, STBlock ss)
+
+defaultCase :: Parser (Maybe Expression, Statement)
+defaultCase =
+    do reserved "default"
+       colon
+       ss <- statementListOpt
+       return (Nothing, STBlock ss)
 
 -- Throw Statement
 throwStatement :: Parser Statement
