@@ -108,10 +108,10 @@ data Value
 {-
     内部でのみ使用
 -}
-    | Void
     | NativeFunction NativeFunction
     | Reference (IORef Value, String)
     | Ref { getRef :: IORef Value }
+    | Void
     deriving Show
 
 type Namespace
@@ -149,6 +149,7 @@ data Exception
     | ReferenceError String
     | NotDefined String
     | InvalidAssignmentLeftSide
+    | SysExit
 
 instance Show Exception where
     show (TypeError e) = "TypeError: " ++ e

@@ -71,16 +71,17 @@ runRepl flags =
     run (setupEnv >> setupCatchAndRunRepl)
     where setupCatchAndRunRepl =
               do e <- callCC $ \cc -> do { pushCont cc CThrow; return Void }
-                 unless (isVoid e)
-                        (do when (isException e) (liftAll $ print $ exceptionBody e)
-                            setupCatchAndRunRepl)
-                 runRepl' flags
+                 case e of
+                      Void -> runRepl' flags
+                      Exception SysExit -> return ()
+                      Exception e -> do liftAll $ print e
+                                        setupCatchAndRunRepl
+                      _ -> return () 
 
 options :: [OptDescr Flag]
 options = [
-        Option ['d'] ["debug"] (NoArg Debug)         "debug mode",
-        Option ['p'] ["parse"] (NoArg ParseOnly)     "parse-only mode",
-        Option []    []        (ReqArg InputFile "") "input file"
+        Option ['d'] ["debug"]               (NoArg Debug)         "debug mode",
+        Option ['p'] ["parse", "parse-only"] (NoArg ParseOnly)     "parse-only mode"
     ]
 
 parseOpts :: [String] -> IO ([Flag], [String])

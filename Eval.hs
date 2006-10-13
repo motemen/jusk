@@ -439,11 +439,11 @@ defaultValue object hint =
           tryMethod object name = 
               do method <- getProp object name
                  case method of
-                    Null -> return Nothing
-                    _ -> do result <- callFunction object method []
-                            if isPrimitive result
-                               then return $ Just result
-                               else return Nothing
+                      Null -> return Nothing
+                      _ -> do result <- callFunction object method []
+                              if isPrimitive result
+                                 then return $ Just result
+                                 else return Nothing
 
 data Operator = Unary   { opName :: String, opUnaryFunc :: (Value -> Evaluate Value) }
               | Binary  { opName :: String, opBinaryFunc :: (Value -> Value -> Evaluate Value) }

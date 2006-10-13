@@ -42,7 +42,8 @@ setupEnv =
 
        defineVar "print" (NativeFunction print')
        defineVar "__print__" (NativeFunction printNative)
-       defineVar "__printEnv__" (NativeFunction printEnv)
+       defineVar "__env__" (NativeFunction printEnv)
+       defineVar "exit" (NativeFunction exit)
        
        return ()
 
@@ -64,3 +65,7 @@ setupEnv =
                 do env <- get
                    liftAll $ print env
                    return Undefined
+
+             exit :: NativeFunction
+             exit _ =
+                throw SysExit
