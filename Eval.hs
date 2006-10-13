@@ -103,13 +103,13 @@ instance Eval Statement where
         do value <- maybe (return Undefined) eval expr
            returnCont CReturn value
 
-    eval (STTry tryStatement catchClauses finallyClause) =
+    eval (STTry tryStatement catchClause finallyClause) =
         do e <- withCC CThrow (eval tryStatement)
            v1 <- case e of
                       Exception _ ->
-                          if null catchClauses
+                          if isNothing catchClause
                              then return Void
-                             else do let (p, st) = head catchClauses
+                             else do let (p, st) = fromJust catchClause
                                      binding <- bindParamArgs [p] [e]
                                      pushScope binding
                                      value <- eval st

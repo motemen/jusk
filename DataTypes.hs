@@ -57,7 +57,7 @@ data Statement
 --  | STLabeled
     | STIf Expression Statement (Maybe Statement)
 --  | STSwitch 
---  | STDo
+    | STDoWhile Expression Statement
     | STWhile Expression Statement
     | STFor { forInitialize :: Statement, forCondition :: Expression, forUpdate :: Expression, forBlock :: Statement }
     | STForIn { forBinding :: Statement, forObject :: Expression, forBlock :: Statement }
@@ -66,7 +66,7 @@ data Statement
     | STBreak (Maybe String)
     | STReturn (Maybe Expression)
 --  | STThrow
-    | STTry { tryClause :: Statement, tryCatchClauses :: [(Parameter, Statement)], tryFinallyClause :: Maybe Statement }
+    | STTry { tryClause :: Statement, tryCatchClause :: Maybe (Parameter, Statement), tryFinallyClause :: Maybe Statement }
     deriving Show
 
 data Expression

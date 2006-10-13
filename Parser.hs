@@ -552,41 +552,21 @@ expression p = liftM List $ (assignmentExpression p) `sepBy` comma
 
 -- Statements {{{
 -- http://www.mozilla.org/js/language/js20/core/statements.html
--- XXX: This order
-statement :: ParserParameter -> Parser Statement
-statement p = block
-          <|> (variableStatement p)
-          <|> (ifStatement p)
-          <|> (whileStatement p)
-          <|> (forStatement p)
-          <|> (continueStatement `followedBy` (semicolon p))
-          <|> (breakStatement `followedBy` (semicolon p))
-          <|> (returnStatement `followedBy` (semicolon p))
---        <|> superStatement `followedBy` (semicolon p)
---        <|> (block)
+statement :: Parser Statement
+statement = block
+          <|> (variableStatement AllowIn)
+          <|> emptyStatement
+          <|> expressionStatement
+          <|> ifStatement
+          <|> iterationStatement
+          <|> continueStatement
+          <|> breakStatement
+          <|> returnStatement
+--        <|> withStatement
 --        <|> labeledStatement
 --        <|> switchStatement
---        <|> (doStatement `followedBy` (semicolon p))
---        <|> withStatement
 --        <|> throwStatement `followedBy` (semicolon p)
           <|> tryStatement
-          <|> (expressionStatement `followedBy` semi)
---        <?> "statement(" ++ show p ++ ")"
-
-substatement :: ParserParameter -> Parser Statement
-substatement p = emptyStatement
-             <|> (statement p)
---           <|> (simpleVariableDefinition `followedBy` (semicolon p))
---           <|> do attributes 
---                  braces substatements
-
-substatements =
-    do substatementsPrefix
-       substatement Abbrev
-
-substatementsPrefix =
-    do substatementsPrefix
-       substatement Full
 
 semicolon :: ParserParameter -> Parser String
 semicolon Full = semi
@@ -595,6 +575,34 @@ semicolon _    = semi
              <|> (newline >> return ";")
              <|> (eof >> return ";")
              <|> return ";"
+
+--- Block
+block :: Parser Statement
+block = liftM STBlock (braces $ many $ statement) <?> "block"
+
+--- Variable statement
+variableStatement :: ParserParameter -> Parser Statement
+variableStatement p =
+    do reserved "var"
+       bindings <- variableDeclarationList p
+       return $ STVariableDefinition bindings
+    <?> "variable definition"
+
+variableDeclarationList :: ParserParameter -> Parser [VariableBinding]
+variableDeclarationList p =
+    (variableDeclaration p) `sepBy` comma
+
+variableDeclaration :: ParserParameter -> Parser VariableBinding
+variableDeclaration p =
+    do var <- identifierString
+       init <- initialiserOpt p
+       return (var, init)
+
+initialiserOpt :: ParserParameter -> Parser (Maybe Expression)
+initialiserOpt p =
+    option Nothing
+           (do reservedOp "="
+               liftM Just $ assignmentExpression p)
 
 --- Empty Statement
 emptyStatement :: Parser Statement
@@ -606,44 +614,47 @@ emptyStatement =
 expressionStatement :: Parser Statement
 expressionStatement = ((reserved "function" <|> reservedOp "{") >> fail "")
                   <|> do expr <- expression AllowIn
+                         semi 
                          return $ STExpression expr
 
---- Block Statement
-block :: Parser Statement
-block = liftM STBlock (braces $ many $ statement AllowIn) <?> "block"
-
---- Labeled Statements
---- If Statement
-ifStatement NoShortIf =
+--- The if Statement
+ifStatement :: Parser Statement
+ifStatement =
     do reserved "if"
-       condition <- parenListExpression
-       thenStatement <- substatement NoShortIf
-       reserved "else"
-       elseStatement <- substatement NoShortIf
-       return $ STIf condition thenStatement (Just elseStatement)
-
-ifStatement p =
-    do reserved "if"
-       condition <- parenListExpression
-       thenStatement <- substatement p
+       condition <- parens $ expression AllowIn
+       thenStatement <- statement
        (do reserved "else"
-           elseStatement <- substatement p
+           elseStatement <- statement
            return $ STIf condition thenStatement (Just elseStatement))
            `ifFail` STIf condition thenStatement Nothing
 
---- Switch Statement
---- Do-While Statement
---- While Statement
-whileStatement :: ParserParameter -> Parser Statement
-whileStatement p =
+--- Iteration Statements
+iterationStatement :: Parser Statement
+iterationStatement = doWhileStatement
+                 <|> whileStatement
+                 <|> forStatement
+
+---- Do-While Statement
+doWhileStatement :: Parser Statement
+doWhileStatement =
+    do reserved "do"
+       block <- statement
+       reserved "while"
+       condition <- parens $ expression AllowIn
+       semi
+       return $ STDoWhile condition block
+
+---- While Statement
+whileStatement :: Parser Statement
+whileStatement =
     do reserved "while"
-       condition <- parenListExpression
-       block <- substatement p
+       condition <- parens $ expression AllowIn
+       block <- statement
        return $ STWhile condition block
 
 --- For Statements
-forStatement :: ParserParameter -> Parser Statement
-forStatement p =
+forStatement :: Parser Statement
+forStatement =
     do reserved "for"
        symbol "("
        (try $ do init <- forInitializer
@@ -652,13 +663,13 @@ forStatement p =
                  semi
                  updt <- expressionOpt
                  symbol ")"
-                 block <- substatement p
+                 block <- statement
                  return $ STFor init cond updt block)
            <|> (do binding <- variableStatement NoIn -- TODO: leftHandSideExpression
                    reserved "in"
                    object <- expression AllowIn
                    symbol ")"
-                   block <- substatement p
+                   block <- statement
                    return $ STForIn binding object block)
 
 forInitializer :: Parser Statement
@@ -670,6 +681,7 @@ expressionOpt :: Parser Expression
 expressionOpt = (expression AllowIn)
             <|> (return $ List [])
 
+--- Switch Statement
 --- With Statement
 --- Continue and Break Statements
 continueStatement :: Parser Statement
@@ -696,15 +708,13 @@ returnStatement =
 tryStatement :: Parser Statement
 tryStatement =
     do reserved "try"
-       tryBlock <- block
-       catchClauses <- many catchClause
-       finallyClause <- do reserved "finally"
-                           b <- block
-                           return $ Just b
-                    <|> (if null catchClauses
-                            then fail "no catch clause"
-                            else return Nothing)
-       return $ STTry tryBlock catchClauses finallyClause
+       try <- block
+       (catch, finally) <- (do c <- catchClause
+                               f <- option Nothing $ liftM Just finallyClause
+                               return (Just c, f))
+                               <|> (do f <- finallyClause
+                                       return (Nothing, Just f)) 
+       return $ STTry try catch finally
 
 catchClause :: Parser (Parameter, Statement)
 catchClause =
@@ -713,34 +723,15 @@ catchClause =
        block <- block
        return (param, block)
 
+finallyClause :: Parser Statement
+finallyClause =
+    do reserved "finally"
+       block
+
 --- Programs
 program :: Parser JavaScriptProgram
-program = many (statement AllowIn <|> functionDeclaration)
+program = many (statement <|> functionDeclaration)
 -- }}}
-
---- Variable statement
-variableStatement :: ParserParameter -> Parser Statement
-variableStatement p =
-    do reserved "var"
-       bindings <- variableDeclarationList p
-       return $ STVariableDefinition bindings
-    <?> "variable definition"
-
-variableDeclarationList :: ParserParameter -> Parser [VariableBinding]
-variableDeclarationList p =
-    (variableDeclaration p) `sepBy` comma
-
-variableDeclaration :: ParserParameter -> Parser VariableBinding
-variableDeclaration p =
-    do var <- identifierString
-       init <- initialiserOpt p
-       return (var, init)
-
-initialiserOpt :: ParserParameter -> Parser (Maybe Expression)
-initialiserOpt p =
-    option Nothing
-           (do reservedOp "="
-               liftM Just $ assignmentExpression p)
 
 -- Functions {{{
 --- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/13_Function_Definition.html
