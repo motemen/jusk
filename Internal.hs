@@ -149,36 +149,10 @@ putValue (Reference (baseRef, name)) value =
 putValue _ _ =
     throw InvalidAssignmentLeftSide
 
-makeRef :: Value -> Evaluate Value
-makeRef ref@(Ref _) = return ref
-
-makeRef object =
-    do ref <- liftAll $ newIORef object
-       return $ Ref ref
-
-makeIORef :: Value -> Evaluate (IORef Value)
-makeIORef (Ref ref) = return ref
-
-makeIORef object =
-    do ref <- liftAll $ newIORef object
-       return $ ref
-
-readRef :: Value -> Evaluate Value
-readRef (Ref objRef) =
-    do object <- liftAll $ readIORef objRef
-       readRef object
-
-readRef object = return object
-
 getVar :: String -> Evaluate Value
 getVar name =
     do env <- get
        getFrameVar (envFrames env) name
-
-getVarRef :: String -> Evaluate (IORef Value)
-getVarRef name =
-    do env <- get
-       getFrameVarRef (envFrames env) name
 
 setVar :: String -> Value -> Evaluate Value
 setVar name value =
@@ -213,7 +187,7 @@ defineVar name value =
                                  defineVar' name value
                    _ -> do bRef <- liftM frBinding currentFrame
                            binding <- liftAll $ readIORef bRef
-                           valueRef <- liftAll $ newIORef value
+                           valueRef <- makeRef value
                            liftAll $ writeIORef bRef ((name, valueRef):binding)
                            return value
 
@@ -238,29 +212,6 @@ getFrameVar (f@(WithFrame objRef):fs) name =
 getFrameVar (f:fs) name =
     do binding <- liftAll $ readIORef $ frBinding f
        maybe (getFrameVar fs name)
-             (liftAll . readIORef)
-             (lookup name binding)
-
-getFrameVarRef :: [Frame] -> String -> Evaluate (IORef Value)
-getFrameVarRef [] name =
-    do exception <- throw $ NotDefined name
-       liftAll $ newIORef exception
-
-getFrameVarRef (f@(WithFrame objRef):fs) name =
-    do object <- liftAll $ readIORef objRef
-       getFrameVarRef' object fs name
-    where getFrameVarRef' object fs name =
-              do value <- property object name
-                 maybe (do proto <- prototypeOf object
-                           if isNull proto
-                              then getFrameVarRef fs name
-                              else getFrameVarRef' proto fs name)
-                       (makeIORef)
-                       (value)
-
-getFrameVarRef (f:fs) name =
-    do binding <- liftAll $ readIORef $ frBinding f
-       maybe (getFrameVarRef fs name)
              (return)
              (lookup name binding)
 
@@ -272,6 +223,6 @@ setFrameVar ((WithFrame objRef):fs) name value =
 setFrameVar (f:fs) name value =
     do binding <- liftAll $ readIORef $ frBinding f
        maybe (return ()) -- TODO: warn
-             (liftIO . (flip writeIORef value))
+             (liftIO . (flip writeIORef value) . getRef)
              (lookup name binding)
        return value

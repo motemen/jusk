@@ -185,13 +185,12 @@ instance Eval Expression where
         getThis
     
     eval (Operator "[]" [Identifier name, p]) =
-        do baseRef <- getVarRef name
+        do baseRef <- liftM getRef $ getVar name
            prop <- toString =<< getValue =<< eval p
---         liftAll $ do { putStr "eval \"[]\": "; print (baseRef, prop) }
            return $ Reference (baseRef, prop)
     
     eval (Operator "[]" [base, p]) =
-        do Ref baseRef <- makeRef =<< getValue =<< eval base
+        do Ref baseRef <- makeRef =<< getValue =<< eval base -- XXX: あやしい
            prop <- toString =<< getValue =<< eval p
            return $ Reference (baseRef, prop)
     
@@ -314,16 +313,11 @@ evalOperator _ _ =
 
 callFunction :: Value -> Value -> [Value] -> Evaluate Value
 callFunction this (Function { funcParam = param, funcBody = body }) args =
-    do paramArgs <- liftAll $ mapM zipArg $ zip param (args ++ repeat Undefined)
-       binding <- liftAll $ newIORef $ paramArgs
+    do binding <- bindParamArgs param (args ++ repeat Undefined)
        pushFrame this binding
        value <- withCC CReturn (eval body)
        popFrame
        return value
-    where zipArg :: (String, Value) -> IO (String, IORef Value)
-          zipArg (name, arg) = 
-              do argRef <- newIORef arg
-                 return (name, argRef)
 
 callFunction this (NativeFunction nativeFunc) args =
     do pushNullFrame this
@@ -358,6 +352,9 @@ new (constructor@Function { }) args =
        object <- liftAll $ liftM Ref $ newIORef $ nullObject { prototype = prototype }
        callFunction object constructor args
        return object
+
+new (ref@Ref { }) args =
+    readRef ref >>= flip new args
 
 toString :: Value -> Evaluate String
 toString Void      = return ""

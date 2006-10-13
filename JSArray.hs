@@ -59,7 +59,7 @@ push xs =
     do thisRef <- getThis
        this <- readRef thisRef -- Must be a reference
        liftAll $ case this of
-                      Array _ -> modifyIORef (objRef thisRef)
+                      Array _ -> modifyIORef (getRef thisRef)
                                              (\(Array array) -> Array $ array ++ xs)
        len <- getProp thisRef "length"
        return len
@@ -71,7 +71,7 @@ pop _ =
        this <- readRef thisRef
        case this of
             Array []    -> return Undefined
-            Array array -> do liftAll $ modifyIORef (objRef thisRef)
+            Array array -> do liftAll $ modifyIORef (getRef thisRef)
                                                     (\(Array array) -> Array $ init array)
                               return $ last array
 
@@ -86,7 +86,7 @@ unshift xs =
     do thisRef <- getThis
        this <- readRef thisRef -- Must be a reference
        liftAll $ case this of
-                      Array _ -> modifyIORef (objRef thisRef)
+                      Array _ -> modifyIORef (getRef thisRef)
                                              (\(Array array) -> Array $ xs ++ array)
        len <- getProp thisRef "length"
        return len
@@ -98,7 +98,7 @@ shift _ =
        this <- readRef thisRef
        case this of
             Array []    -> return Undefined
-            Array array -> do liftAll $ modifyIORef (objRef thisRef)
+            Array array -> do liftAll $ modifyIORef (getRef thisRef)
                                                     (\(Array array) -> Array $ tail array)
                               return $ last array
 

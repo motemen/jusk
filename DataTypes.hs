@@ -33,7 +33,7 @@ data Frame
     deriving Show
 
 type Binding
-    = IORef [(String, IORef Value)]
+    = IORef [(String, Value)]
 
 type Cont
     = (ContType, Value -> Evaluate Value)
@@ -111,7 +111,7 @@ data Value
     | Void
     | NativeFunction NativeFunction
     | Reference (IORef Value, String)
-    | Ref { objRef :: IORef Value }
+    | Ref { getRef :: IORef Value }
     deriving Show
 
 type Namespace
@@ -183,6 +183,27 @@ instance JSConvertible Bool where
     fromValue (String "") = False
 
     fromValue _ = True
+
+makeRef :: Value -> Evaluate Value
+makeRef ref@(Ref _) = return ref
+
+makeRef object =
+    do ref <- liftAll $ newIORef object
+       return $ Ref ref
+
+makeIORef :: Value -> Evaluate (IORef Value)
+makeIORef (Ref ref) = return ref
+
+makeIORef object =
+    do ref <- liftAll $ newIORef object
+       return $ ref
+
+readRef :: Value -> Evaluate Value
+readRef (Ref objRef) =
+    do object <- liftAll $ readIORef objRef
+       readRef object
+
+readRef object = return object
 
 nullObject :: Value
 nullObject = Object {

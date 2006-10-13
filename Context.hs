@@ -89,10 +89,10 @@ getThis = do env <- get
 
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Binding
 bindParamArgs params args =
-    do binding <- liftAll $ mapM zipArg $ zip params args
+    do binding <- mapM zipArg $ zip params args
        bRef <- liftAll $ newIORef binding
        return bRef
-    where zipArg :: (Parameter, Value) -> IO (String, IORef Value)
+    where zipArg :: (Parameter, Value) -> Evaluate (String, Value)
           zipArg (param, arg) = 
-              do argRef <- newIORef arg
+              do argRef <- makeRef arg
                  return (param, argRef)
