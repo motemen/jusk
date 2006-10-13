@@ -254,7 +254,6 @@ oper =
 isReservedOp name =
     isReserved (sort (reservedOpNames)) name          
     
-    
 -----------------------------------------------------------
 -- Identifiers & Reserved words
 -----------------------------------------------------------
@@ -589,7 +588,7 @@ assignmentExpression p =
 
 compoundAssignment, logicalAssignment :: Parser String
 compoundAssignment = choice $ map opString ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
-logicalAssignment  = choice $ map opString ["&&=", "^^=", "||="]
+logicalAssignment  = choice $ map opString ["&&=", "^^=", "||="] -- Not defined
 
 opString :: String -> Parser String
 opString op = do reservedOp op
@@ -606,6 +605,7 @@ statement :: Parser Statement
 statement = block
         <|> (variableStatement AllowIn)
         <|> emptyStatement
+        <|> (try labelledStatement)
         <|> expressionStatement
         <|> ifStatement
         <|> iterationStatement
@@ -613,7 +613,6 @@ statement = block
         <|> breakStatement
         <|> returnStatement
 --      <|> withStatement
---      <|> labeledStatement
 --      <|> switchStatement
         <|> throwStatement
         <|> tryStatement
@@ -763,6 +762,14 @@ returnStatement =
        expr <- option Nothing (liftM Just (try $ expression AllowIn))
        semicolon
        return $ STReturn expr
+
+-- Labelled Statements
+labelledStatement :: Parser Statement
+labelledStatement =
+    do label <- identifierString
+       colon
+       st <- statement
+       return $ STLabelled label st
 
 -- Throw Statement
 throwStatement :: Parser Statement

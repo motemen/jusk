@@ -12,6 +12,7 @@ import Data.IORef
 import List
 import Maybe
 import Control.Monad.State
+import Control.Monad.Cont hiding(Cont)
 
 import Parser
 import DataTypes
@@ -112,6 +113,12 @@ instance Eval Statement where
     eval (STReturn expr) =
         do value <- maybe (return Undefined) eval expr
            returnCont CReturn value
+
+    eval (STLabelled label st) =
+        do callCC
+           $ \cc -> do pushCont cc (CBreak $ Just label)
+                       pushCont cc (CContinue $ Just label)
+                       eval st
 
     eval (STThrow expr) =
         do value <- eval expr

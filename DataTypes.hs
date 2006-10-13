@@ -53,7 +53,7 @@ data Statement
     | STEmpty
     | STExpression Expression
     | STBlock [Statement]
---  | STLabeled String Statement
+    | STLabelled String Statement
     | STIf Expression Statement (Maybe Statement)
 --  | STSwitch 
     | STDoWhile Expression Statement
