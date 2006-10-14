@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
 module Operator where
+import Data.Bits
 
 import DataTypes
 import Eval

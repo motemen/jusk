@@ -66,6 +66,37 @@ toNumber (String string) =
 toNumber object@(Object { }) =
     toPrimitive object "Number" >>= toNumber
 
+toIntWith :: (Integer -> Int) -> Value -> Evaluate Int
+toIntWith convert value =
+    do num <- toNumber value
+       return $ case num of
+                     NaN -> 0
+                     Double n | isInfinite n -> 0
+                              | otherwise -> convert $ truncate n
+                     Integer n -> convert n
+
+toInt :: Value -> Evaluate Int
+toInt = toIntWith integerToInt
+    where integerToInt :: Integer -> Int
+          integerToInt n =
+              let intMax = floor (2**32)
+                  n' = n `rem` intMax
+                  in fromEnum $ if n' >= floor (2**31)
+                                   then n' - intMax
+                                   else n'
+
+toUInt :: Value -> Evaluate Int
+toUInt = toIntWith integerToUInt
+    where integerToUInt :: Integer -> Int
+          integerToUInt n =
+              fromEnum $ n `rem` floor (2**32)
+
+toUInt16 :: Value -> Evaluate Int
+toUInt16 = toIntWith integerToUInt16
+    where integerToUInt16 :: Integer -> Int
+          integerToUInt16 n =
+              fromEnum $ n `rem` floor (2**16)
+
 toPrimitive :: Value -> String -> Evaluate Value
 toPrimitive Undefined _ =
     return Undefined
@@ -84,4 +115,3 @@ toPrimitive string@(String _) _ =
 
 toPrimitive object preferredType =
     defaultValue object preferredType
-
