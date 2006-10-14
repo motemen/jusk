@@ -1,6 +1,6 @@
 {-
     JSType.hs
-    Œ^•ÏŠ·
+    å‹å¤‰æ›
 -}
 
 module JSType where

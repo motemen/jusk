@@ -1,6 +1,6 @@
 {-
     ParserUtil.hs
-    ƒp[ƒUƒ†[ƒeƒBƒŠƒeƒB[ŠÖ”
+    ãƒ‘ãƒ¼ã‚¶ãƒ¦ãƒ¼ãƒ†ã‚£ãƒªãƒ†ã‚£ãƒ¼é–¢æ•°
 -}
 
 module ParserUtil where

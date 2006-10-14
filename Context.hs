@@ -1,6 +1,6 @@
 {-
     Context.hs
-    ÀsƒRƒ“ƒeƒLƒXƒg
+    å®Ÿè¡Œã‚³ãƒ³ãƒ†ã‚­ã‚¹ãƒˆ
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/10_Execution_Contexts.html
 -}
 

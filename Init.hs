@@ -1,6 +1,6 @@
 {-
     Init.hs
-    ŠÂ‹«‚ðƒZƒbƒgƒAƒbƒv‚·‚é
+    ç’°å¢ƒã‚’ã‚»ãƒƒãƒˆã‚¢ãƒƒãƒ—ã™ã‚‹
 -}
 
 module Init where
