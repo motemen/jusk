@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
 module Operator where
+import Monad
 import Data.Bits
 
 import DataTypes
+import JSType
 import Eval
 import Context
 import Internal
@@ -18,7 +20,7 @@ operatorsTable = [
         Unary  "-"  $ numericUnaryOp negate,
         Binary "*"  $ numericBinaryOp (*),
         Binary "/"  $ numericBinaryOp (/),
-        Binary "%"  $ rem',
+        Binary "%"  $ (%),
         Binary "+"  $ (+~),
         Binary "-"  $ numericBinaryOp (-),
         Binary "<"  $ comparisonOp (<),
@@ -27,6 +29,9 @@ operatorsTable = [
         Binary "<=" $ comparisonOp (<=),
         Binary "==" $ comparisonOp (==),
         Binary "!=" $ comparisonOp (/=),
+        Binary ">>" $ bitwiseBinaryOp shiftR,
+        Binary "<<" $ bitwiseBinaryOp shiftL,
+        Binary ">>>" $ (>>>),
         Binary "in" $ inOperator
     ]
 
@@ -45,6 +50,12 @@ numericBinaryOp op x y =
                 m <- toNumber y
                 numericBinaryOp op (Number n) (Number m)
 
+bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
+bitwiseBinaryOp op n m =
+    do n <- toInt n
+       m <- liftM (0x1F .&.) (toUInt m)
+       return $ Number $ Integer $ toEnum $ n `op` m
+
 (+~) :: Value -> Value -> Evaluate Value
 x +~ y =
     case (x, y) of
@@ -53,16 +64,22 @@ x +~ y =
                  t <- toString y
                  return $ String $ s ++ t
 
-rem' :: Value -> Value -> Evaluate Value
-rem' (Number (Integer n)) (Number (Integer m)) =
+(%) :: Value -> Value -> Evaluate Value
+(%) (Number (Integer n)) (Number (Integer m)) =
     return $ Number $ Integer $ rem n m
 
-rem' (Number n) (Number m) =
+(%) (Number n) (Number m) =
     let n' = toDouble n
         m' = toDouble m
         in return $ Number $ Double $ n' - m' * fromIntegral (floor (n' / m'))
 
-rem' _ _ = return $ Number NaN
+(%) _ _ = return $ Number NaN
+
+(>>>) :: Value -> Value -> Evaluate Value
+(>>>) n m =
+    do n <- toUInt n
+       m <- liftM (0x1F .&.) (toUInt m)
+       return $ Number $ Integer $ toEnum $ foldl clearBit (n `shiftR` m) [31,30..(31-m+1)]
 
 inOperator :: Value -> Value -> Evaluate Value
 inOperator name object =

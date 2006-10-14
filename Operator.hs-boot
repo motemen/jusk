@@ -14,9 +14,13 @@ numericUnaryOp :: (Double -> Double) -> Value -> Evaluate Value
 
 numericBinaryOp :: (Double -> Double -> Double) -> Value -> Value -> Evaluate Value
 
+bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
+
 (+~) :: Value -> Value -> Evaluate Value
 
-rem' :: Value -> Value -> Evaluate Value
+(%) :: Value -> Value -> Evaluate Value
+
+(>>>) :: Value -> Value -> Evaluate Value
 
 inOperator :: Value -> Value -> Evaluate Value
 
