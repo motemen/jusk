@@ -6,7 +6,7 @@
     http://www.mozilla.org/js/language/js20/core/namespaces.html#property-lookup
 -}
 
-module Eval (module Eval, Context.nullFrame, module JSType) where
+module Eval (module Eval, Context.nullEnv, module JSType) where
 import Monad
 import Data.IORef
 import List
@@ -21,13 +21,6 @@ import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
 import Internal
 import Context
-
-tidyNumber :: Value -> Value
-tidyNumber num@(Number (Double x))
-    | isInfinite x || isNaN x = num 
-    | x == (fromIntegral $ round x) = Number $ Integer $ round x
-    | otherwise = num
-tidyNumber x = x
 
 instance Eval Statement where
     eval (STVariableDefinition bindings) =
@@ -204,7 +197,6 @@ instance Eval Expression where
                                   Reference (baseRef, _) -> Ref baseRef
                                   _ -> Null
            callee <- getValue =<< eval callee
---         liftAll $ do { putStr "eval \"()\": "; print (maybeRef, this, callee) }
            mapM evalR args >>= callFunction this callee 
     
     eval (Operator "new" (klass:args)) =
@@ -261,10 +253,10 @@ instance Eval Expression where
     eval (Let (Identifier name) right) =
         do bound <- isBound name
            value <- getValue =<< eval right
-           -- TODO: warn if not bound
            if bound
               then setVar name value
-              else do v <- defineVar name value
+              else do warn $ "assignment to undeclared variable " ++ name
+                      v <- defineVar name value
                       return v
     
     eval (Let left right) =
@@ -286,7 +278,7 @@ instance Eval Expression where
 -- Operator {{{
 evalOperator :: String -> [Value] -> Evaluate Value
 evalOperator op [x] =
-    maybe (return Undefined) -- TODO: throw error
+    maybe (throw $ NotImplemented $ "operator " ++ op)
           (\op -> do value <- (opUnaryFunc op) x
                      return $ tidyNumber value)
           (find (\p -> case p of
@@ -295,7 +287,7 @@ evalOperator op [x] =
                 operatorsTable)
 
 evalOperator op [x,y] =
-    maybe (return Undefined) -- TODO: throw error
+    maybe (throw $ NotImplemented $ "operator " ++ op)
           (\op -> do value <- (opBinaryFunc op) x y
                      return $ tidyNumber value)
           (find (\p -> case p of
@@ -303,7 +295,7 @@ evalOperator op [x,y] =
                             _ -> False) operatorsTable)
 
 evalOperator op [x,y,z] =
-    maybe (return Undefined) -- TODO: throw error
+    maybe (throw $ NotImplemented $ "operator " ++ op)
           (\op -> do value <- (opTernaryFunc op) x y z
                      return $ tidyNumber value)
           (find (\p -> case p of
@@ -335,9 +327,9 @@ callFunction this (Ref objRef) args =
 callFunction this (Object { delegate = obj }) args =
     callFunction this obj args
 
--- XXX: Debug
 callFunction t o a =
-    return $ String $ "callFunction:\n  this=" ++ show t ++ "\n  func=" ++ show o ++ "\n  args=" ++ show a
+    throw $ NotImplemented
+          $ "callFunction:\n  this=" ++ show t ++ "\n  func=" ++ show o ++ "\n  args=" ++ show a
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
@@ -363,7 +355,7 @@ defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
     (if hint == "String" then liftM2 mplus (tryMethod object "toString") (tryMethod object "valueOf")
                          else liftM2 mplus (tryMethod object "valueOf") (tryMethod object "toString"))
-     >>= maybe (return Null) -- TODO: Warn
+     >>= maybe (throw $ NotImplemented $ "defaultValue: " ++ show object ++ " " ++ hint)
                (return)
     where tryMethod :: Value -> String -> Evaluate (Maybe Value)
           tryMethod object name = 

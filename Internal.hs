@@ -143,12 +143,12 @@ putValue _ _ =
 
 getVar :: String -> Evaluate Value
 getVar name =
-    do env <- get
+    do env <- getEnv
        getFrameVar (envFrames env) name
 
 setVar :: String -> Value -> Evaluate Value
 setVar name value =
-    do env <- get
+    do env <- getEnv
        setFrameVar (envFrames env) name value
 
 isBound :: String -> Evaluate Bool
@@ -214,7 +214,14 @@ setFrameVar ((WithFrame objRef):fs) name value =
 
 setFrameVar (f:fs) name value =
     do binding <- liftAll $ readIORef $ frBinding f
-       maybe (return ()) -- TODO: warn
+       maybe (warn $ "assignment to undeclared variable " ++ name)
              (liftIO . (flip writeIORef value) . getRef)
              (lookup name binding)
        return value
+
+warn :: String -> Evaluate ()
+warn message =
+    do env <- getEnv
+       if Warn `elem` (envFlags env)
+          then liftAll $ putStrLn $ "warning: " ++ message
+          else return ()

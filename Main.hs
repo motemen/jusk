@@ -19,22 +19,17 @@ import Context
 import Eval
 import Init
 
-data Flag
-    = Debug
-    | ParseOnly
-    | InputFile String
-    deriving (Show, Eq)
-
 ePutStrLn :: String -> IO ()
 ePutStrLn = hPutStrLn stderr
 
 ePrint :: (Show a) => a -> IO ()
 ePrint = hPrint stderr
 
-run :: Evaluate a -> IO ()
-run x = do nullFrame <- nullFrame
-           x `runContT` (const $ return Void) `evalStateT` nullFrame
-           return ()
+run :: [Flag] -> Evaluate a -> IO ()
+run flags thunk =
+    do nullEnv <- nullEnv flags
+       thunk `runContT` (const $ return Void) `evalStateT` nullEnv
+       return ()
 
 evalText :: [Flag] -> String -> Evaluate Value
 evalText flags input =
@@ -53,10 +48,10 @@ evalText flags input =
 evalFile :: [Flag] -> String -> IO ()
 evalFile flags filename =
     do content <- readFile filename
-       run $ do setupEnv
-                e <- callCC $ \cc -> do { pushCont cc CThrow; evalText flags content; return Void }
-                when (isException e)
-                     (liftAll $ print $ exceptionBody e)
+       run flags $ do setupEnv
+                      e <- callCC $ \cc -> do { pushCont cc CThrow; evalText flags content; return Void }
+                      when (isException e)
+                           (liftAll $ print $ exceptionBody e)
 
 runRepl' :: [Flag] -> Evaluate ()
 runRepl' flags =
@@ -69,7 +64,7 @@ runRepl' flags =
 
 runRepl :: [Flag] -> IO ()
 runRepl flags =
-    run (setupEnv >> setupCatchAndRunRepl)
+    run flags (setupEnv >> setupCatchAndRunRepl)
     where setupCatchAndRunRepl =
               do e <- callCC $ \cc -> do { pushCont cc CThrow; return Void }
                  case e of
@@ -81,8 +76,9 @@ runRepl flags =
 
 options :: [OptDescr Flag]
 options = [
-        Option ['d'] ["debug"]               (NoArg Debug)         "debug mode",
-        Option ['p'] ["parse", "parse-only"] (NoArg ParseOnly)     "parse-only mode"
+        Option ['d'] ["debug"] (NoArg Debug)     "debug mode",
+        Option ['w'] ["warn"]  (NoArg Warn)      "turn on warnings",
+        Option ['p'] ["parse"] (NoArg ParseOnly) "only parse text (do not evaluate)"
     ]
 
 parseOpts :: [String] -> IO ([Flag], [String])

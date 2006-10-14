@@ -62,7 +62,7 @@ setupEnv =
 
              printEnv :: NativeFunction
              printEnv _ =
-                do env <- get
+                do env <- getEnv
                    liftAll $ print env
                    return Undefined
 

@@ -11,14 +11,15 @@ import Control.Monad.Cont hiding(Cont)
 
 import DataTypes
 
-nullEnv :: IO Binding
-nullEnv = newIORef []
+nullEnv :: [Flag] -> IO Env
+nullEnv flags =
+    do binding <- newIORef []
+       return $ Env { envFrames = [GlobalFrame binding Null], envContStack = [], envFlags = flags }
+
+getEnv :: Evaluate Env
+getEnv = get
 
 -- Frame
-nullFrame :: IO Env
-nullFrame = do e <- nullEnv
-               return $ Env { envFrames = [GlobalFrame e Null], envContStack = [] }
-
 pushFrame :: Value -> Binding -> Evaluate ()
 pushFrame this binding =
     modify (\env@Env { envFrames = frames } -> env { envFrames = (Activation binding this):frames })
@@ -50,7 +51,7 @@ popScope :: Evaluate ()
 popScope = popFrame
 
 currentFrame :: Evaluate Frame
-currentFrame = liftM (head . envFrames) get
+currentFrame = liftM (head . envFrames) getEnv
 
 -- Continuation
 pushCont :: (Value -> Evaluate Value) -> ContType -> Evaluate ()
@@ -59,7 +60,7 @@ pushCont c ct =
 
 popCont :: Evaluate Cont
 popCont =
-    do env <- get
+    do env <- getEnv
        let cs = envContStack env
        put $ env { envContStack = tail cs }
        return $ head cs
@@ -84,7 +85,7 @@ throw e =
     returnCont CThrow (Exception e)
 
 getThis :: Evaluate Value
-getThis = do env <- get
+getThis = do env <- getEnv
              return $ frThis $ head $ envFrames env
 
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Binding

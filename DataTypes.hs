@@ -9,6 +9,13 @@ import System.IO.Unsafe
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 
+data Flag
+    = Debug
+    | Warn
+    | ParseOnly
+    | InputFile String
+    deriving (Show, Eq)
+
 class JSConvertible a where
     fromValue :: Value -> a
 
@@ -22,7 +29,7 @@ liftAll :: IO a -> Evaluate a
 liftAll = lift . lift
 
 data Env
-    = Env { envFrames :: [Frame], envContStack :: [Cont] }
+    = Env { envFrames :: [Frame], envContStack :: [Cont], envFlags :: [Flag] }
     deriving Show
 
 data Frame
@@ -148,13 +155,19 @@ data Exception
     | ReferenceError String
     | NotDefined String
     | InvalidAssignmentLeftSide
+{-
+    内部でのみ使用
+-}
+    | NotImplemented String
     | SysExit
 
 instance Show Exception where
-    show (TypeError e) = "TypeError: " ++ e
-    show (ReferenceError id) = id ++ " is not defined"
-    show (NotDefined id) = id ++ " is not defined"
+    show (TypeError e)             = "TypeError: " ++ e
+    show (ReferenceError msg)      = "ReferenceError: " ++ msg
+    show (NotDefined id)           = id ++ " is not defined"
     show InvalidAssignmentLeftSide = "invalid assignment left-hand side"
+
+    show (NotImplemented message) = "*** not implemented(yet): " ++ message
 
 data ContType
     = CReturn
@@ -204,6 +217,13 @@ readRef (Ref objRef) =
        readRef object
 
 readRef object = return object
+
+tidyNumber :: Value -> Value
+tidyNumber num@(Number (Double x))
+    | isInfinite x || isNaN x = num 
+    | x == (fromIntegral $ round x) = Number $ Integer $ round x
+    | otherwise = num
+tidyNumber x = x
 
 nullObject :: Value
 nullObject = Object {
