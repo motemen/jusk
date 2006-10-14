@@ -1,7 +1,6 @@
 {-
     DataTypes.hs
     Haskell内部の型
-    http://developer.mozilla.org/es4/spec/chapter_4_fundamental_concepts.html#abstract_data
 -}
 
 module DataTypes where

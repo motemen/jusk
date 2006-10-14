@@ -12,7 +12,7 @@ import Maybe
 
 import DataTypes
 import Context
-import Parser(natural, runLex)
+import ParserUtil (natural,runLex)
 
 property :: Value -> String -> Evaluate (Maybe Value)
 property object@(Object { }) p =
