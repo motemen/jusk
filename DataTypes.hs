@@ -16,9 +16,6 @@ data Flag
     | InputFile String
     deriving (Show, Eq)
 
-class JSConvertible a where
-    fromValue :: Value -> a
-
 class Eval a where
     eval :: a -> Evaluate Value
 
@@ -180,21 +177,6 @@ instance Show (a -> b) where
 
 instance Show a => Show (IORef a) where
     show x = "IORef " ++ (show $ unsafePerformIO $ readIORef x)
-
-instance JSConvertible Bool where
-    fromValue Undefined = False
-
-    fromValue Null = False
-
-    fromValue (Boolean bool) = bool
-
-    fromValue (Number (Integer n)) = n /= 0
-    fromValue (Number (Double n))  = n /= 0
-    fromValue (Number NaN) = False
-
-    fromValue (String "") = False
-
-    fromValue _ = True
 
 makeRef :: Value -> Evaluate Value
 makeRef ref@(Ref _) = return ref

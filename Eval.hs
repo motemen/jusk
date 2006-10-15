@@ -41,8 +41,8 @@ instance Eval Statement where
         getValue =<< eval expr
     
     eval (STIf condition thenStatement maybeElseStatement) =
-        do c <- getValue =<< eval condition
-           if fromValue c
+        do c <- toBoolean =<< getValue =<< eval condition
+           if c
               then eval thenStatement
               else maybe (return Void)
                          (eval)
@@ -59,8 +59,8 @@ instance Eval Statement where
                (evalDoWhileBlock condition block Void)
         where evalDoWhileBlock condition block lastValue =
                   do value <- withCC (CContinue Nothing) (eval block)
-                     cond <- eval condition
-                     if fromValue cond
+                     cond <- toBoolean =<< eval condition
+                     if cond
                         then evalDoWhileBlock condition block value
                         else return lastValue
 
@@ -68,8 +68,8 @@ instance Eval Statement where
         withCC (CBreak Nothing)
                (evalWhileBlock condition block Void)
         where evalWhileBlock condition block lastValue =
-                  do cond <- eval condition
-                     if fromValue cond
+                  do cond <- toBoolean =<< eval condition
+                     if cond
                         then do value <- withCC (CContinue Nothing) (eval block)
                                 evalWhileBlock condition block value
                         else return lastValue
@@ -82,8 +82,8 @@ instance Eval Statement where
                    popScope
                    return value)
         where evalForBlock condition block update lastValue =
-                  do value <- eval condition
-                     if fromValue value
+                  do value <- toBoolean =<< eval condition
+                     if value
                         then do value <- withCC (CContinue Nothing) (eval block)
                                 eval update
                                 evalForBlock condition block update value
@@ -138,8 +138,8 @@ instance Eval Statement where
 
               evalSwitchStatement value clauses@((Just e, st):cs) defaultClause lastValue =
                   do e <- getValue =<< eval e
-                     m <- comparisonOp (==) value e 
-                     if fromValue m
+                     m <- toBoolean =<< comparisonOp (==) value e 
+                     if m
                         then liftM last $ mapM (evalR . snd) clauses
                         else evalSwitchStatement value cs defaultClause lastValue
 

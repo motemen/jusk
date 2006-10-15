@@ -19,7 +19,7 @@ property object@(Object { }) p =
     return $ lookup p (properties object)
 
 property (Array array) "length" =
-    return $ Just $ Number $ Integer $ toInteger $ length array
+    return $ Just $ Number $ Integer $ toEnum $ length array
 
 property (Array array) p =
     case (runLex natural p) of
