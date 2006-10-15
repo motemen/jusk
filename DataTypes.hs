@@ -45,7 +45,6 @@ type Cont
     = (ContType, Value -> Evaluate Value)
 
 type JavaScriptProgram =
-    -- ([PackageDefinition], [Directive])
     [Statement]
 
 type VariableBinding
@@ -167,7 +166,7 @@ instance Show Exception where
     show (NotDefined id)           = id ++ " is not defined"
     show InvalidAssignmentLeftSide = "invalid assignment left-hand side"
 
-    show (NotImplemented message) = "*** not implemented(yet): " ++ message
+    show (NotImplemented message) = "*** not implemented: " ++ message
 
 data ContType
     = CReturn

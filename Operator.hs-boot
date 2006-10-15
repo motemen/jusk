@@ -16,11 +16,17 @@ numericBinaryOp :: (Double -> Double -> Double) -> Value -> Value -> Evaluate Va
 
 bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
 
-(+~) :: Value -> Value -> Evaluate Value
+(.+.) :: Value -> Value -> Evaluate Value
 
-(%) :: Value -> Value -> Evaluate Value
+(.%.) :: Value -> Value -> Evaluate Value
 
-(>>>) :: Value -> Value -> Evaluate Value
+(.~.) :: Value -> Evaluate Value
+
+(.>>.) :: Value -> Value -> Evaluate Value
+
+(.<<.) :: Value -> Value -> Evaluate Value
+
+(.>>>.) :: Value -> Value -> Evaluate Value
 
 inOperator :: Value -> Value -> Evaluate Value
 

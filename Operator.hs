@@ -16,28 +16,43 @@ data Operator = Unary   { opName :: String, opUnaryFunc :: (Value -> Evaluate Va
 
 operatorsTable :: [Operator]
 operatorsTable = [
-        Unary  "+"  $ numericUnaryOp id,
-        Unary  "-"  $ numericUnaryOp negate,
-        Binary "*"  $ numericBinaryOp (*),
-        Binary "/"  $ numericBinaryOp (/),
-        Binary "%"  $ (%),
-        Binary "+"  $ (+~),
-        Binary "-"  $ numericBinaryOp (-),
-        Binary "<"  $ comparisonOp (<),
-        Binary ">"  $ comparisonOp (>),
-        Binary ">=" $ comparisonOp (>=),
-        Binary "<=" $ comparisonOp (<=),
-        Binary "==" $ comparisonOp (==),
-        Binary "!=" $ comparisonOp (/=),
-        Binary ">>" $ bitwiseBinaryOp shiftR,
-        Binary "<<" $ bitwiseBinaryOp shiftL,
-        Binary ">>>" $ (>>>),
-        Binary "in" $ inOperator
+        Unary  "+"   $ numericUnaryOp id,
+        Unary  "-"   $ numericUnaryOp negate,
+
+        Unary  "~"   $ (.~.),
+--      Unary  "!"   $ (.!.),
+
+        Binary "*"   $ numericBinaryOp (*),
+        Binary "/"   $ numericBinaryOp (/),
+        Binary "%"   $ (.%.),
+
+        Binary "+"   $ (.+.),
+        Binary "-"   $ numericBinaryOp (-),
+
+        Binary ">>"  $ (.>>.),
+        Binary "<<"  $ (.<<.),
+        Binary ">>>" $ (.>>>.),
+
+        Binary "<"   $ comparisonOp (<),
+        Binary ">"   $ comparisonOp (>),
+        Binary ">="  $ comparisonOp (>=),
+        Binary "<="  $ comparisonOp (<=),
+--      Binary "instanceof"
+--                   $ instanceofOperator,
+        Binary "in"  $ inOperator,
+
+        Binary "=="  $ comparisonOp (==),
+        Binary "!="  $ comparisonOp (/=),
+
+        Binary "&"   $ bitwiseBinaryOp (.&.),
+        Binary "|"   $ bitwiseBinaryOp (.|.),
+        Binary "^"   $ bitwiseBinaryOp (xor)
     ]
 
 numericUnaryOp :: (Double -> Double) -> Value -> Evaluate Value
 numericUnaryOp op x = 
     case x of
+        (Number NaN) -> return x
         (Number n) -> return $ Number $ Double $ op $ toDouble n
         _ -> do n <- toNumber x
                 numericUnaryOp op (Number n)
@@ -53,30 +68,47 @@ numericBinaryOp op x y =
 bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
 bitwiseBinaryOp op n m =
     do n <- toInt n
-       m <- liftM (0x1F .&.) (toUInt m)
+       m <- toInt m
        return $ Number $ Integer $ toEnum $ n `op` m
 
-(+~) :: Value -> Value -> Evaluate Value
-x +~ y =
+(.+.) :: Value -> Value -> Evaluate Value
+(.+.) x y =
     case (x, y) of
          (Number n, Number m) -> numericBinaryOp (+) x y
          _ -> do s <- toString x
                  t <- toString y
                  return $ String $ s ++ t
 
-(%) :: Value -> Value -> Evaluate Value
-(%) (Number (Integer n)) (Number (Integer m)) =
+(.%.) :: Value -> Value -> Evaluate Value
+(.%.) (Number (Integer n)) (Number (Integer m)) =
     return $ Number $ Integer $ rem n m
 
-(%) (Number n) (Number m) =
+(.%.) (Number n) (Number m) =
     let n' = toDouble n
         m' = toDouble m
         in return $ Number $ Double $ n' - m' * fromIntegral (floor (n' / m'))
 
-(%) _ _ = return $ Number NaN
+(.%.) _ _ = return $ Number NaN
 
-(>>>) :: Value -> Value -> Evaluate Value
-(>>>) n m =
+(.~.) :: Value -> Evaluate Value
+(.~.) n =
+    do n <- toInt n
+       return $ Number $ Integer $ toEnum $ complement n
+
+(.>>.) :: Value -> Value -> Evaluate Value
+(.>>.) n m =
+    do n <- toInt n
+       m <- liftM (0x1F .&.) (toUInt m)
+       return $ Number $ Integer $ toEnum $ n `shiftR` m
+
+(.<<.) :: Value -> Value -> Evaluate Value
+(.<<.) n m =
+    do n <- toInt n
+       m <- liftM (0x1F .&.) (toUInt m)
+       return $ Number $ Integer $ toEnum $ n `shiftL` m
+
+(.>>>.) :: Value -> Value -> Evaluate Value
+(.>>>.) n m =
     do n <- toUInt n
        m <- liftM (0x1F .&.) (toUInt m)
        return $ Number $ Integer $ toEnum $ foldl clearBit (n `shiftR` m) [31,30..(31-m+1)]
