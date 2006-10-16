@@ -4,6 +4,8 @@
 -}
 
 module DataTypes where
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.IORef
 import System.IO.Unsafe
 import Control.Monad.State
@@ -120,9 +122,6 @@ data Value
 type NativeFunction
     = ([Value] -> Evaluate Value)
 
-type Map a b
-    = [(a, b)]
-
 data Number
     = Integer Integer
     | Double Double
@@ -206,8 +205,8 @@ tidyNumber x = x
 
 nullObject :: Value
 nullObject = Object {
-        objProperties = [],
-        objAttributes = [],
+        objProperties = Map.empty,
+        objAttributes = Map.empty,
         objDefault    = Null,
         objPrototype  = Null,
         objClass      = "Object",

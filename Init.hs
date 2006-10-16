@@ -7,6 +7,7 @@ module Init where
 import IO
 import Control.Monad.Cont
 import Control.Monad.State
+import Data.Map
 
 import DataTypes
 import Context
@@ -19,8 +20,8 @@ setupEnv :: Evaluate ()
 setupEnv =
     do defineVar "Object"
                  nullObject {
-                     objProperties = [("prototype", Object.prototypeObject)],
-                     objAttributes = [("prototype", [DontEnum, DontDelete, ReadOnly])],
+                     objProperties = fromList [("prototype", Object.prototypeObject)],
+                     objAttributes = fromList [("prototype", [DontEnum, DontDelete, ReadOnly])],
                      objDefault    = NativeFunction Object.function,
                      objPrototype  = Object.prototypeObject,
                      objConstruct  = NativeFunction Object.make
@@ -28,8 +29,8 @@ setupEnv =
 
        defineVar "Array"
                  nullObject {
-                     objProperties = [("prototype", Array.prototypeObject)],
-                     objAttributes = [("prototype", [DontEnum, DontDelete, ReadOnly])],
+                     objProperties = fromList [("prototype", Array.prototypeObject)],
+                     objAttributes = fromList [("prototype", [DontEnum, DontDelete, ReadOnly])],
                      objDefault    = NativeFunction Array.function,
                      objPrototype  = Array.prototypeObject,
                      objConstruct  = NativeFunction Array.make

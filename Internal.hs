@@ -14,6 +14,7 @@ module Internal (
         defineVar,
         warn
     ) where
+import qualified Data.Map as Map
 import Data.IORef
 import Monad
 import Control.Monad.Trans
@@ -72,8 +73,8 @@ putProp objRef p ref@(Ref _) =
                            objRef
                            (\object@Object { objProperties = props, objAttributes = attrs }
                                 -> object {
-                                       objProperties = assign props p ref,
-                                       objAttributes = assign attrs p []
+                                       objProperties = Map.insert p ref props,
+                                       objAttributes = Map.insert p [] attrs
                                    }))
 
 putProp objRef p value =
@@ -92,7 +93,7 @@ hasProperty :: Value -> String -> Evaluate Bool
 hasProperty object@(Object { objProperties = props }) p =
     maybe (prototypeOf object >>= flip hasProperty p `ifNull` (lift $ return False))
           (const $ lift $ return True)
-          (lookup p props)
+          (Map.lookup p props)
 
 -- Reference の解決
 -- TODO: throw ReferenceError
@@ -199,7 +200,7 @@ warn message =
 
 property :: Value -> String -> Evaluate (Maybe Value)
 property object@(Object { }) p =
-    return $ lookup p (objProperties object)
+    return $ Map.lookup p (objProperties object)
 
 property (Array array) "length" =
     return $ Just $ Number $ Integer $ toEnum $ length array
@@ -224,17 +225,7 @@ property o p =
 
 propAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
 propAttr object@(Object { }) p =
-    return $ lookup p (objAttributes object)
-
-assign :: Eq a => [(a, b)] -> a -> b -> [(a, b)]
-assign = flip assign' []
-       where
-          assign' :: Eq a => [(a, b)] -> [(a, b)] -> a -> b -> [(a, b)]
-          assign' [] assigned key value =
-            (key,value):reverse assigned
-          assign' ((k,v):pairs) assigned key value
-            | k == key  = reverse ((key,value):assigned) ++ pairs
-            | otherwise = assign' pairs ((k,v):assigned) key value
+    return $ Map.lookup p (objAttributes object)
 
 ifNull :: (Value -> a) -> a -> Value -> a
 ifNull _ g Null = g

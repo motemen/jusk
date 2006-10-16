@@ -5,6 +5,7 @@
 -}
 
 module JSObject where
+import Data.Map hiding(map)
 
 import DataTypes
 import Context
@@ -14,10 +15,10 @@ import Internal
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objProperties = [("constructor", NativeFunction make),
-                         ("toString",    NativeFunction toString)],
-        objAttributes = [("constructor", []),
-                         ("toString",    [])],
+        objProperties = fromList [("constructor", NativeFunction make),
+                                  ("toString",    NativeFunction toString)],
+        objAttributes = fromList [("constructor", []),
+                                  ("toString",    [])],
         objClass = "Object"
     }
 
@@ -39,8 +40,8 @@ toString _ =
 create :: [(String, Value)] -> Evaluate Value
 create props = 
     return $ nullObject {
-        objProperties = props,
-        objAttributes = zip (map fst props) (repeat []),
+        objProperties = fromList props,
+        objAttributes = fromList $ zip (map fst props) (repeat []),
         objPrototype = prototypeObject,
         objClass = "Object"
     }
@@ -52,9 +53,9 @@ make [] =
         objClass = "Object"
     }
 
-make (v:_) =
+make (value:_) =
     return $ nullObject {
-        objPrototype    = prototypeObject,
-        objClass    = "Object",
-        objDefault = v
+        objPrototype = prototypeObject,
+        objClass     = "Object",
+        objDefault   = value
     }

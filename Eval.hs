@@ -8,6 +8,7 @@
 
 module Eval (module Eval, Context.nullEnv, module JSType) where
 import Monad
+import qualified Data.Map as Map
 import Data.IORef
 import List
 import Maybe
@@ -92,7 +93,7 @@ instance Eval Statement where
     eval (STForIn (STVariableDefinition { varDefBindings = [(name, _)] }) object block) =
         withCC (CBreak Nothing) 
                (do object <- readRef =<< evalR object
-                   props <- liftAll $ return $ map fst $ objProperties object
+                   props <- liftAll $ return $ Map.keys $ objProperties object
                    liftM last $ mapM (\n -> do binding <- bindParamArgs [name] [String n]
                                                pushScope binding
                                                value <- eval block

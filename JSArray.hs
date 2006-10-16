@@ -7,6 +7,7 @@
 module JSArray where
 import Monad hiding(join)
 import List(intersperse)
+import Data.Map hiding(null)
 import Data.IORef
 
 import DataTypes
@@ -18,22 +19,22 @@ import Eval
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objProperties = [("constructor", NativeFunction make),
-                         ("toString",    NativeFunction toStringMethod),
-                         ("push",        NativeFunction push),
-                         ("pop",         NativeFunction pop),
-                         ("unshift",     NativeFunction unshift),
-                         ("shift",       NativeFunction shift),
-                         ("join",        NativeFunction join)
-                        ],
-        objAttributes = [("constructor", []),
-                         ("toString",    []),
-                         ("push",        []),
-                         ("pop",         []),
-                         ("unshift",     []),
-                         ("shift",       []),
-                         ("join",        [])
-                        ]
+        objProperties = fromList [("constructor", NativeFunction make),
+                                  ("toString",    NativeFunction toStringMethod),
+                                  ("push",        NativeFunction push),
+                                  ("pop",         NativeFunction pop),
+                                  ("unshift",     NativeFunction unshift),
+                                  ("shift",       NativeFunction shift),
+                                  ("join",        NativeFunction join)
+                                 ],
+        objAttributes = fromList [("constructor", []),
+                                  ("toString",    []),
+                                  ("push",        []),
+                                  ("pop",         []),
+                                  ("unshift",     []),
+                                  ("shift",       []),
+                                  ("join",        [])
+                                 ]
     }
 
 -- Array()
