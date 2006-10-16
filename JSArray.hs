@@ -18,22 +18,22 @@ import Eval
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        properties = [("constructor", NativeFunction make),
-                      ("toString",    NativeFunction toStringMethod),
-                      ("push",        NativeFunction push),
-                      ("pop",         NativeFunction pop),
-                      ("unshift",     NativeFunction unshift),
-                      ("shift",       NativeFunction shift),
-                      ("join",        NativeFunction join)
-                     ],
-        attributes = [("constructor", []),
-                      ("toString",    []),
-                      ("push",        []),
-                      ("pop",         []),
-                      ("unshift",     []),
-                      ("shift",       []),
-                      ("join",        [])
-                     ]
+        objProperties = [("constructor", NativeFunction make),
+                         ("toString",    NativeFunction toStringMethod),
+                         ("push",        NativeFunction push),
+                         ("pop",         NativeFunction pop),
+                         ("unshift",     NativeFunction unshift),
+                         ("shift",       NativeFunction shift),
+                         ("join",        NativeFunction join)
+                        ],
+        objAttributes = [("constructor", []),
+                         ("toString",    []),
+                         ("push",        []),
+                         ("pop",         []),
+                         ("unshift",     []),
+                         ("shift",       []),
+                         ("join",        [])
+                        ]
     }
 
 -- Array()

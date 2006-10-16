@@ -94,16 +94,17 @@ data Value
         funcName :: Maybe String,
         funcParam :: Parameters,
         funcBody :: Statement
+--      funcScope :: [Frame]
       }
     | Object {
-        properties :: Map String Value,
-        attributes :: Map String [PropertyAttribute],
+        objProperties :: Map String Value,
+        objAttributes :: Map String [PropertyAttribute],
 
         --  内部プロパティ
-        delegate :: Value,
-        prototype :: Value,
-        className :: String,
-        construct :: Value
+        objPrototype :: Value,  -- [[Prototype]]
+        objClass :: String,     -- [[Class]]
+        objDefault :: Value,    -- [[DefaultValue]]
+        objConstruct :: Value   -- [[Construct]]
       }
     | Exception { exceptionBody :: Exception }
 --  | RegularExpression
@@ -115,9 +116,6 @@ data Value
     | Ref { getRef :: IORef Value }
     | Void
     deriving Show
-
-type Namespace
-    = String
 
 type NativeFunction
     = ([Value] -> Evaluate Value)
@@ -208,12 +206,12 @@ tidyNumber x = x
 
 nullObject :: Value
 nullObject = Object {
-        properties = [],
-        attributes = [],
-        delegate   = Null,
-        prototype  = Null,
-        className  = "Object",
-        construct  = Null
+        objProperties = [],
+        objAttributes = [],
+        objDefault    = Null,
+        objPrototype  = Null,
+        objClass      = "Object",
+        objConstruct  = Null
     }
 
 isUndefined :: Value -> Bool

@@ -3,7 +3,17 @@
     内部プロパティとメソッド
 -}
 
-module Internal where
+module Internal (
+        prototypeOf,
+        classOf,
+        getProp, putProp, canPut,
+        hasProperty,
+        getValue, putValue,
+        getVar, setVar,
+        isBound,
+        defineVar,
+        warn
+    ) where
 import Data.IORef
 import Monad
 import Control.Monad.Trans
@@ -14,48 +24,9 @@ import DataTypes
 import Context
 import ParserUtil (natural,runLex)
 
-property :: Value -> String -> Evaluate (Maybe Value)
-property object@(Object { }) p =
-    return $ lookup p (properties object)
-
-property (Array array) "length" =
-    return $ Just $ Number $ Integer $ toEnum $ length array
-
-property (Array array) p =
-    case (runLex natural p) of
-         Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
-                       property a p
-         Right n -> lift $ return $ Just $ array !! (fromInteger n)
-
-property (Ref objRef) p =
-    do object <- liftAll $ readIORef objRef
-       property object p
-
-property (Function { }) "prototype" =
-    do object <- getVar "Object"
-       property object "prototype"
-
--- XXX: Debug
-property o p =
-    do liftAll $ print $ "property: " ++ show o ++ " " ++ p
-       return $ Nothing
-
-propAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
-propAttr object@(Object { }) p =
-    return $ lookup p (attributes object)
-
-assign :: Eq a => [(a, b)] -> a -> b -> [(a, b)]
-assign = flip assign' []
-       where
-          assign' :: Eq a => [(a, b)] -> [(a, b)] -> a -> b -> [(a, b)]
-          assign' [] assigned key value =
-            (key,value):reverse assigned
-          assign' ((k,v):pairs) assigned key value
-            | k == key  = reverse ((key,value):assigned) ++ pairs
-            | otherwise = assign' pairs ((k,v):assigned) key value
-
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/8_Types.html#section-8.6
 
+-- [[Prototype]]
 prototypeOf :: Value -> Evaluate Value
 prototypeOf (Array _) =
     do array <- getVar "Array"
@@ -67,63 +38,63 @@ prototypeOf (Ref objRef) =
 
 prototypeOf obj =
     return $ case obj of
-                  Object { } -> prototype obj
+                  Object { } -> objPrototype obj
                   _ -> Null
 
+-- [[Class]]
 classOf :: Value -> Evaluate Value
 classOf obj =
     return $ case obj of
-                  Object { } -> String $ className obj
+                  Object { } -> String $ objClass obj
                   _ -> Null
 
--- value :: Value -> InternalProperty
-
-ifNull :: (Value -> a) -> a -> Value -> a
-ifNull _ g Null = g
-ifNull f _ v = f v
-
+-- プロパティの取得/設定
+-- [[Get]]
 getProp :: Value -> String -> Evaluate Value
 getProp object p =
     property object p
     >>= maybe (prototypeOf object >>= flip getProp p `ifNull` (lift $ return Undefined))
               (lift . return)
 
+-- [[Put]]
 putProp :: IORef Value -> String -> Value -> Evaluate ()
 putProp objRef p ref@(Ref _) =
     do object <- liftAll $ readIORef objRef
        putProp' object p ref
     where
-        putProp' (Ref objRef) p ref = putProp objRef p ref
+        putProp' (Ref objRef) p ref =
+            putProp objRef p ref
         putProp' object p ref =
             do canPut <- canPut object p
                when (canPut)
                     (liftAll
                      $ modifyIORef
                            objRef
-                           (\object@Object { properties = props, attributes = attrs }
+                           (\object@Object { objProperties = props, objAttributes = attrs }
                                 -> object {
-                                       properties = assign props p ref,
-                                       attributes = assign attrs p []
+                                       objProperties = assign props p ref,
+                                       objAttributes = assign attrs p []
                                    }))
 
 putProp objRef p value =
     do ref <- liftAll $ liftM Ref $ newIORef value
        putProp objRef p ref
 
+-- [[CanPut]]
 canPut :: Value -> String -> Evaluate Bool
 canPut object p =
     propAttr object p 
     >>= maybe (prototypeOf object >>= flip canPut p `ifNull` (lift $ return True))
               (lift . return . not . elem ReadOnly)
 
+-- [[HasProperty]]
 hasProperty :: Value -> String -> Evaluate Bool
-hasProperty object@(Object { properties = props }) p =
+hasProperty object@(Object { objProperties = props }) p =
     maybe (prototypeOf object >>= flip hasProperty p `ifNull` (lift $ return False))
           (const $ lift $ return True)
           (lookup p props)
 
--- delete :: IORef Value -> String -> IO Bool
-
+-- Reference の解決
 -- TODO: throw ReferenceError
 getValue :: Value -> Evaluate Value
 getValue (Reference (baseRef, name)) =
@@ -225,3 +196,46 @@ warn message =
        if Warn `elem` (envFlags env)
           then liftAll $ putStrLn $ "warning: " ++ message
           else return ()
+
+property :: Value -> String -> Evaluate (Maybe Value)
+property object@(Object { }) p =
+    return $ lookup p (objProperties object)
+
+property (Array array) "length" =
+    return $ Just $ Number $ Integer $ toEnum $ length array
+
+property (Array array) p =
+    case (runLex natural p) of
+         Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
+                       property a p
+         Right n -> lift $ return $ Just $ array !! (fromInteger n)
+
+property (Ref objRef) p =
+    do object <- liftAll $ readIORef objRef
+       property object p
+
+property (Function { }) "prototype" =
+    do object <- getVar "Object"
+       property object "prototype"
+
+property o p =
+    do throw $ NotImplemented $ "property: " ++ show o ++ " " ++ p
+       return Nothing
+
+propAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
+propAttr object@(Object { }) p =
+    return $ lookup p (objAttributes object)
+
+assign :: Eq a => [(a, b)] -> a -> b -> [(a, b)]
+assign = flip assign' []
+       where
+          assign' :: Eq a => [(a, b)] -> [(a, b)] -> a -> b -> [(a, b)]
+          assign' [] assigned key value =
+            (key,value):reverse assigned
+          assign' ((k,v):pairs) assigned key value
+            | k == key  = reverse ((key,value):assigned) ++ pairs
+            | otherwise = assign' pairs ((k,v):assigned) key value
+
+ifNull :: (Value -> a) -> a -> Value -> a
+ifNull _ g Null = g
+ifNull f _ v = f v

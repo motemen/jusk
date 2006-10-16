@@ -14,11 +14,11 @@ import Internal
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        properties = [("constructor", NativeFunction make),
-                      ("toString",    NativeFunction toString)],
-        attributes = [("constructor", []),
-                      ("toString",    [])],
-        className = "Object"
+        objProperties = [("constructor", NativeFunction make),
+                         ("toString",    NativeFunction toString)],
+        objAttributes = [("constructor", []),
+                         ("toString",    [])],
+        objClass = "Object"
     }
 
 -- Object()
@@ -39,22 +39,22 @@ toString _ =
 create :: [(String, Value)] -> Evaluate Value
 create props = 
     return $ nullObject {
-        properties = props,
-        attributes = zip (map fst props) (repeat []),
-        prototype = prototypeObject,
-        className = "Object"
+        objProperties = props,
+        objAttributes = zip (map fst props) (repeat []),
+        objPrototype = prototypeObject,
+        objClass = "Object"
     }
 
 make :: NativeFunction
 make [] =
     return $ nullObject {
-        prototype = prototypeObject,
-        className = "Object"
+        objPrototype = prototypeObject,
+        objClass = "Object"
     }
 
 make (v:_) =
     return $ nullObject {
-        prototype = prototypeObject,
-        className = "Object",
-        delegate = v
+        objPrototype    = prototypeObject,
+        objClass    = "Object",
+        objDefault = v
     }

@@ -92,7 +92,7 @@ instance Eval Statement where
     eval (STForIn (STVariableDefinition { varDefBindings = [(name, _)] }) object block) =
         withCC (CBreak Nothing) 
                (do object <- readRef =<< evalR object
-                   props <- liftAll $ return $ map fst $ properties object
+                   props <- liftAll $ return $ map fst $ objProperties object
                    liftM last $ mapM (\n -> do binding <- bindParamArgs [name] [String n]
                                                pushScope binding
                                                value <- eval block
@@ -324,7 +324,7 @@ callFunction this (Ref objRef) args =
     do object <- liftAll $ readIORef objRef
        callFunction this object args
 
-callFunction this (Object { delegate = obj }) args =
+callFunction this (Object { objDefault = obj }) args =
     callFunction this obj args
 
 callFunction t o a =
@@ -339,12 +339,12 @@ callMethod object name args =
 -- new Foo(arg1, arg2, ...)
 -- TODO
 new :: Value -> [Value] -> Evaluate Value
-new (Object { construct = NativeFunction constructor }) args = 
+new (Object { objConstruct = NativeFunction constructor }) args = 
     constructor args
 
 new (constructor@Function { }) args = 
     do prototype <- getProp constructor "prototype"
-       object <- liftAll $ liftM Ref $ newIORef $ nullObject { prototype = prototype }
+       object <- liftAll $ liftM Ref $ newIORef $ nullObject { objPrototype = prototype }
        callFunction object constructor args
        return object
 
