@@ -20,20 +20,20 @@ setupEnv :: Evaluate ()
 setupEnv =
     do defineVar "Object"
                  nullObject {
-                     objProperties = fromList [("prototype", Object.prototypeObject)],
-                     objAttributes = fromList [("prototype", [DontEnum, DontDelete, ReadOnly])],
-                     objDefault    = NativeFunction Object.function,
-                     objPrototype  = Object.prototypeObject,
-                     objConstruct  = NativeFunction Object.make
+                     objPropMap
+                         = mkPropMap [("prototype", Object.prototypeObject, [DontEnum, DontDelete, ReadOnly])],
+                     objDefault   = NativeFunction Object.function,
+                     objPrototype = Object.prototypeObject,
+                     objConstruct = NativeFunction Object.make
                  }
 
        defineVar "Array"
                  nullObject {
-                     objProperties = fromList [("prototype", Array.prototypeObject)],
-                     objAttributes = fromList [("prototype", [DontEnum, DontDelete, ReadOnly])],
-                     objDefault    = NativeFunction Array.function,
-                     objPrototype  = Array.prototypeObject,
-                     objConstruct  = NativeFunction Array.make
+                     objPropMap
+                         = mkPropMap [("prototype", Array.prototypeObject, [DontEnum, DontDelete, ReadOnly])],
+                     objDefault   = NativeFunction Array.function,
+                     objPrototype = Array.prototypeObject,
+                     objConstruct = NativeFunction Array.make
                  }
 
        defineVar "NaN" (Number NaN)

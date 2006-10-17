@@ -16,6 +16,7 @@ data Flag
     | Warn
     | ParseOnly
     | InputFile String
+    | EvalStr String
     deriving (Show, Eq)
 
 class Eval a where
@@ -99,8 +100,7 @@ data Value
 --      funcScope :: [Frame]
       }
     | Object {
-        objProperties :: Map String Value,
-        objAttributes :: Map String [PropertyAttribute],
+        objPropMap :: Map String PropertyPair,
 
         --  内部プロパティ
         objPrototype :: Value,  -- [[Prototype]]
@@ -127,6 +127,18 @@ data Number
     | Double Double
     | NaN
     deriving (Show, Eq)
+
+data PropertyPair
+    = PropertyPair { propValue :: Value, propAttr :: [PropertyAttribute] }
+    deriving Show
+
+mkProp :: Value -> [PropertyAttribute] -> PropertyPair
+mkProp = PropertyPair
+
+mkPropMap :: [(String, Value, [PropertyAttribute])] -> Map String PropertyPair
+mkPropMap values =
+    Map.fromList $ map mkPropEntry values
+    where mkPropEntry (name, value, attr) = (name, mkProp value attr)
 
 data PropertyAttribute
     = ReadOnly
@@ -205,8 +217,7 @@ tidyNumber x = x
 
 nullObject :: Value
 nullObject = Object {
-        objProperties = Map.empty,
-        objAttributes = Map.empty,
+        objPropMap    = Map.empty,
         objDefault    = Null,
         objPrototype  = Null,
         objClass      = "Object",

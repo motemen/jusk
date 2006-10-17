@@ -6,11 +6,12 @@
 -}
 
 module Main where
-import System.Environment
+import System.Environment hiding(getEnv)
 import System.Console.GetOpt
 import IO
 import Control.Monad.State
 import Control.Monad.Cont
+import List
 
 import Parser
 import ParserUtil
@@ -28,11 +29,11 @@ ePrint = hPrint stderr
 run :: [Flag] -> Evaluate a -> IO ()
 run flags thunk =
     do nullEnv <- nullEnv flags
-       thunk `runContT` (const $ return Void) `evalStateT` nullEnv
+       (setupEnv >> thunk) `runContT` (const $ return Void) `evalStateT` nullEnv
        return ()
 
-evalText :: [Flag] -> String -> Evaluate Value
-evalText flags input =
+evalText :: String -> Evaluate Value
+evalText input =
     case runLex program input of
          Left err ->
             liftAll
@@ -40,35 +41,35 @@ evalText flags input =
                  ePutStrLn $ showError input err
                  return Void
          Right program ->
-             do liftAll $ when (Debug `elem` flags) (mapM_ ePrint program)
-                if null program || ParseOnly `elem` flags
+             do env <- getEnv
+                liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
+                if null program || ParseOnly `elem` (envFlags env)
                    then return Void
                    else liftM last $ mapM eval program
 
 evalFile :: [Flag] -> String -> IO ()
 evalFile flags filename =
     do content <- readFile filename
-       run flags $ do setupEnv
-                      e <- callCC $ \cc -> do { pushCont cc CThrow; evalText flags content; return Void }
+       run flags $ do e <- callCC $ \cc -> do { pushCont cc CThrow; evalText content; return Void }
                       when (isException e)
                            (liftAll $ print $ exceptionBody e)
 
-runRepl' :: [Flag] -> Evaluate ()
-runRepl' flags =
+runRepl' :: Evaluate ()
+runRepl' =
     do line <- liftAll (putStr "js> " >> hFlush stdout >> getLine)
-       value <- evalText flags line
+       value <- evalText line
        unless (isVoid value)
               (do string <- toString value
                   liftAll $ putStrLn string)
-       runRepl' flags
+       runRepl'
 
 runRepl :: [Flag] -> IO ()
 runRepl flags =
-    run flags (setupEnv >> setupCatchAndRunRepl)
+    run flags setupCatchAndRunRepl
     where setupCatchAndRunRepl =
               do e <- callCC $ \cc -> do { pushCont cc CThrow; return Void }
                  case e of
-                      Void -> runRepl' flags
+                      Void -> runRepl'
                       Exception SysExit -> return ()
                       Exception e -> do liftAll $ print e
                                         setupCatchAndRunRepl
@@ -76,9 +77,10 @@ runRepl flags =
 
 options :: [OptDescr Flag]
 options = [
-        Option ['d'] ["debug"] (NoArg Debug)     "debug mode",
-        Option ['w'] ["warn"]  (NoArg Warn)      "turn on warnings",
-        Option ['p'] ["parse"] (NoArg ParseOnly) "only parse text (do not evaluate)"
+        Option ['d'] ["debug"] (NoArg Debug)       "debug mode",
+        Option ['w'] ["warn"]  (NoArg Warn)        "turn on warnings",
+        Option ['p'] ["parse"] (NoArg ParseOnly)   "only parse text (do not evaluate)",
+        Option ['e'] []        (ReqArg EvalStr "") "evaluate string"
     ]
 
 parseOpts :: [String] -> IO ([Flag], [String])
@@ -92,6 +94,10 @@ main :: IO ()
 main =
     do args <- getArgs
        (flags, rest) <- parseOpts args
-       case length rest of
-            0 -> runRepl flags
-            1 -> evalFile flags $ rest !! 0
+       maybe (case length rest of
+                   0 -> runRepl flags
+                   1 -> evalFile flags $ rest !! 0)
+             (\(EvalStr string) -> run flags $ evalText string)
+             (find isEvalStr flags)
+    where isEvalStr (EvalStr _) = True
+          isEvalStr _ = False

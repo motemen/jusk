@@ -57,43 +57,43 @@ instance Eval Statement where
     
     eval (STDoWhile condition block) =
         withCC (CBreak Nothing)
-               (evalDoWhileBlock condition block Void)
-        where evalDoWhileBlock condition block lastValue =
+               (evalDoWhileBlock Void)
+        where evalDoWhileBlock lastValue =
                   do value <- withCC (CContinue Nothing) (eval block)
                      cond <- toBoolean =<< eval condition
                      if cond
-                        then evalDoWhileBlock condition block value
+                        then evalDoWhileBlock value
                         else return lastValue
 
     eval (STWhile condition block) =
         withCC (CBreak Nothing)
-               (evalWhileBlock condition block Void)
-        where evalWhileBlock condition block lastValue =
+               (evalWhileBlock Void)
+        where evalWhileBlock lastValue =
                   do cond <- toBoolean =<< eval condition
                      if cond
                         then do value <- withCC (CContinue Nothing) (eval block)
-                                evalWhileBlock condition block value
+                                evalWhileBlock value
                         else return lastValue
               
     eval (STFor initialize condition update block) =
         withCC (CBreak Nothing)
                (do pushNullScope
                    eval initialize
-                   value <- evalForBlock condition block update Void
+                   value <- evalForBlock Void
                    popScope
                    return value)
-        where evalForBlock condition block update lastValue =
+        where evalForBlock lastValue =
                   do value <- toBoolean =<< eval condition
                      if value
                         then do value <- withCC (CContinue Nothing) (eval block)
                                 eval update
-                                evalForBlock condition block update value
+                                evalForBlock value
                         else return lastValue
 
     eval (STForIn (STVariableDefinition { varDefBindings = [(name, _)] }) object block) =
         withCC (CBreak Nothing) 
                (do object <- readRef =<< evalR object
-                   props <- liftAll $ return $ Map.keys $ objProperties object
+                   props <- liftAll $ return $ Map.keys $ objPropMap object
                    liftM last $ mapM (\n -> do binding <- bindParamArgs [name] [String n]
                                                pushScope binding
                                                value <- eval block
@@ -354,12 +354,12 @@ new (ref@Ref { }) args =
 
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
-    (if hint == "String" then liftM2 mplus (tryMethod object "toString") (tryMethod object "valueOf")
-                         else liftM2 mplus (tryMethod object "valueOf") (tryMethod object "toString"))
+    (if hint == "String" then liftM2 mplus (tryMethod "toString") (tryMethod "valueOf")
+                         else liftM2 mplus (tryMethod "valueOf") (tryMethod "toString"))
      >>= maybe (throw $ NotImplemented $ "defaultValue: " ++ show object ++ " " ++ hint)
                (return)
-    where tryMethod :: Value -> String -> Evaluate (Maybe Value)
-          tryMethod object name = 
+    where tryMethod :: String -> Evaluate (Maybe Value)
+          tryMethod name = 
               do method <- getProp object name
                  case method of
                       Null -> return Nothing

@@ -30,8 +30,7 @@ import ParserUtil (natural,runLex)
 -- [[Prototype]]
 prototypeOf :: Value -> Evaluate Value
 prototypeOf (Array _) =
-    do array <- getVar "Array"
-       getProp array "prototype"
+    "prototype" `ofVar` "Array" 
 
 prototypeOf (Ref objRef) =
     do object <- liftAll $ readIORef objRef
@@ -53,28 +52,28 @@ classOf obj =
 -- [[Get]]
 getProp :: Value -> String -> Evaluate Value
 getProp object p =
-    property object p
-    >>= maybe (prototypeOf object >>= flip getProp p `ifNull` (lift $ return Undefined))
+    getOwnProp object p
+    >>= maybe (prototypeOf object >>= maybeNull (lift $ return Undefined)
+                                                (flip getProp p))
               (lift . return)
 
 -- [[Put]]
 putProp :: IORef Value -> String -> Value -> Evaluate ()
 putProp objRef p ref@(Ref _) =
     do object <- liftAll $ readIORef objRef
-       putProp' object p ref
+       putProp' object
     where
-        putProp' (Ref objRef) p ref =
+        putProp' (Ref objRef) =
             putProp objRef p ref
-        putProp' object p ref =
+        putProp' object =
             do canPut <- canPut object p
                when (canPut)
                     (liftAll
                      $ modifyIORef
                            objRef
-                           (\object@Object { objProperties = props, objAttributes = attrs }
+                           (\object@Object { objPropMap = props }
                                 -> object {
-                                       objProperties = Map.insert p ref props,
-                                       objAttributes = Map.insert p [] attrs
+                                       objPropMap = Map.insert p (mkProp ref []) props
                                    }))
 
 putProp objRef p value =
@@ -84,14 +83,16 @@ putProp objRef p value =
 -- [[CanPut]]
 canPut :: Value -> String -> Evaluate Bool
 canPut object p =
-    propAttr object p 
-    >>= maybe (prototypeOf object >>= flip canPut p `ifNull` (lift $ return True))
+    getOwnPropAttr object p 
+    >>= maybe (prototypeOf object >>= maybeNull (lift $ return True)
+                                                (flip canPut p))
               (lift . return . not . elem ReadOnly)
 
 -- [[HasProperty]]
 hasProperty :: Value -> String -> Evaluate Bool
-hasProperty object@(Object { objProperties = props }) p =
-    maybe (prototypeOf object >>= flip hasProperty p `ifNull` (lift $ return False))
+hasProperty object@(Object { objPropMap = props }) p =
+    maybe (prototypeOf object >>= maybeNull (lift $ return False)
+                                            (flip hasProperty p))
           (const $ lift $ return True)
           (Map.lookup p props)
 
@@ -164,7 +165,7 @@ getFrameVar (f@(WithFrame objRef):fs) name =
        getFrameVar' object fs name
     where getFrameVar' :: Value -> [Frame] -> String -> Evaluate Value
           getFrameVar' object fs name =
-              do value <- property object name
+              do value <- getOwnProp object name
                  maybe (do proto <- prototypeOf object
                            if isNull proto
                               then getFrameVar fs name
@@ -198,35 +199,52 @@ warn message =
           then liftAll $ putStrLn $ "warning: " ++ message
           else return ()
 
-property :: Value -> String -> Evaluate (Maybe Value)
-property object@(Object { }) p =
-    return $ Map.lookup p (objProperties object)
+getOwnProp :: Value -> String -> Evaluate (Maybe Value)
+getOwnProp object@(Object { }) p =
+    return $ liftM propValue $ Map.lookup p (objPropMap object)
 
-property (Array array) "length" =
-    return $ Just $ Number $ Integer $ toEnum $ length array
-
-property (Array array) p =
-    case (runLex natural p) of
-         Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
-                       property a p
-         Right n -> lift $ return $ Just $ array !! (fromInteger n)
-
-property (Ref objRef) p =
+getOwnProp (Ref objRef) p =
     do object <- liftAll $ readIORef objRef
-       property object p
+       getOwnProp object p
 
-property (Function { }) "prototype" =
+getOwnProp (Function { }) "prototype" =
     do object <- getVar "Object"
-       property object "prototype"
+       getOwnProp object "prototype"
 
-property o p =
-    do throw $ NotImplemented $ "property: " ++ show o ++ " " ++ p
+-- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
+getOwnProp (Array array) p
+    | p == "length" = return $ Just $ Number $ Integer $ toEnum $ length array
+    | otherwise =
+        case (runLex natural p) of
+             Left _  -> do a <- "prototype" `ofVar` "Array"
+                           getOwnProp a p
+             Right n -> return $ Just $ array !! (fromInteger n)
+
+getOwnProp o p =
+    do throw $ NotImplemented $ "getOwnProp: " ++ show o ++ " " ++ p
        return Nothing
 
-propAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
-propAttr object@(Object { }) p =
-    return $ Map.lookup p (objAttributes object)
+getOwnPropAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
+getOwnPropAttr object@(Object { }) p =
+    return $ liftM propAttr $ Map.lookup p (objPropMap object)
 
-ifNull :: (Value -> a) -> a -> Value -> a
-ifNull _ g Null = g
-ifNull f _ v = f v
+getOwnPropAttr (Array array) p
+    | p == "length" = return $ Just $ [DontEnum, DontDelete]
+    | otherwise =
+        case (runLex natural p) of
+             Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
+                           getOwnPropAttr a p
+             Right n -> return $ Just $ []
+
+getOwnPropAttr (Ref objRef) p =
+    do object <- liftAll $ readIORef objRef
+       getOwnPropAttr object p
+
+maybeNull :: a -> (Value -> a) -> Value -> a
+maybeNull x _ Null = x
+maybeNull _ r v = r v
+
+ofVar :: String -> String -> Evaluate Value
+ofVar prop varName =
+    do var <- getVar varName
+       getProp var prop

@@ -19,22 +19,14 @@ import Eval
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objProperties = fromList [("constructor", NativeFunction make),
-                                  ("toString",    NativeFunction toStringMethod),
-                                  ("push",        NativeFunction push),
-                                  ("pop",         NativeFunction pop),
-                                  ("unshift",     NativeFunction unshift),
-                                  ("shift",       NativeFunction shift),
-                                  ("join",        NativeFunction join)
-                                 ],
-        objAttributes = fromList [("constructor", []),
-                                  ("toString",    []),
-                                  ("push",        []),
-                                  ("pop",         []),
-                                  ("unshift",     []),
-                                  ("shift",       []),
-                                  ("join",        [])
-                                 ]
+        objPropMap = mkPropMap [("constructor", NativeFunction make,           []),
+                                ("toString",    NativeFunction toStringMethod, []),
+                                ("push",        NativeFunction push,           []),
+                                ("pop",         NativeFunction pop,            []),
+                                ("unshift",     NativeFunction unshift,        []),
+                                ("shift",       NativeFunction shift,          []),
+                                ("join",        NativeFunction join,           [])
+                                ]
     }
 
 -- Array()

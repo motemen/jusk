@@ -15,10 +15,8 @@ import Internal
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objProperties = fromList [("constructor", NativeFunction make),
-                                  ("toString",    NativeFunction toString)],
-        objAttributes = fromList [("constructor", []),
-                                  ("toString",    [])],
+        objPropMap = mkPropMap [("constructor", NativeFunction make, []),
+                                ("toString",    NativeFunction toString, [])] ,
         objClass = "Object"
     }
 
@@ -40,17 +38,17 @@ toString _ =
 create :: [(String, Value)] -> Evaluate Value
 create props = 
     return $ nullObject {
-        objProperties = fromList props,
-        objAttributes = fromList $ zip (map fst props) (repeat []),
+        objPropMap = fromList $ map withNoAttr props,
         objPrototype = prototypeObject,
         objClass = "Object"
     }
+    where withNoAttr (name, value) = (name, mkProp value [])
 
 make :: NativeFunction
 make [] =
     return $ nullObject {
         objPrototype = prototypeObject,
-        objClass = "Object"
+        objClass     = "Object"
     }
 
 make (value:_) =
