@@ -5,16 +5,10 @@
 -}
 
 module Context where
-import Data.IORef
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 
 import DataTypes
-
-nullEnv :: [Flag] -> IO Env
-nullEnv flags =
-    do global <- liftM Ref $ newIORef $ nullObject { objClass = "Global" }
-       return $ Env { envFrames = [GlobalFrame global global], envContStack = [], envFlags = flags }
 
 getEnv :: Evaluate Env
 getEnv = get
@@ -24,9 +18,9 @@ pushFrame :: Value -> Binding -> Evaluate ()
 pushFrame this binding =
     modify (\env@Env { envFrames = frames } -> env { envFrames = (Activation binding this):frames })
 
-pushWithFrame :: IORef Value -> Evaluate ()
-pushWithFrame objRef =
-    modify (\env@Env { envFrames = frames } -> env { envFrames = (WithFrame objRef):frames })
+pushWithFrame :: Value -> Evaluate ()
+pushWithFrame object =
+    modify (\env@Env { envFrames = frames } -> env { envFrames = (WithFrame object):frames })
 
 pushNullFrame :: Value -> Evaluate ()
 pushNullFrame this =
@@ -86,7 +80,11 @@ throw e =
 
 getThis :: Evaluate Value
 getThis = do env <- getEnv
-             return $ frThis $ head $ envFrames env
+             return $ getThis' $ envFrames env
+          where getThis' (WithFrame { }:fs)
+                    = getThis' fs
+                getThis' (f:_)
+                    = frThis f
 
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Binding
 bindParamArgs params args =

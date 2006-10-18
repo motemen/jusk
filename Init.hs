@@ -6,6 +6,7 @@
 module Init where
 import IO
 import Control.Monad.State
+import Data.IORef
 
 import DataTypes
 import Context
@@ -13,6 +14,11 @@ import qualified JSObject as Object
 import qualified JSArray as Array
 import Internal
 import Eval
+
+nullEnv :: [Flag] -> IO Env
+nullEnv flags =
+    do global <- liftM Ref $ newIORef $ nullObject { objClass = "Global", objPrototype = Object.prototypeObject }
+       return $ Env { envFrames = [GlobalFrame global global], envContStack = [], envFlags = flags }
 
 setupEnv :: Evaluate ()
 setupEnv =

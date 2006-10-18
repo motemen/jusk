@@ -126,11 +126,8 @@ setVar name value =
 isBound :: String -> Evaluate Bool
 isBound name =
     do frame <- currentFrame
-       case frame of
-            WithFrame objRef -> do object <- liftAll $ readIORef objRef
-                                   hasProperty object name
-            _ -> do object <- readRef $ frObject frame
-                    hasProperty object name
+       object <- readRef $ frObject frame
+       hasProperty object name
 
 defineVar :: String -> Value -> Evaluate Value
 defineVar name value =
@@ -152,30 +149,12 @@ getFrameVar :: [Frame] -> String -> Evaluate Value
 getFrameVar [] name =
     throw $ ReferenceError $ name ++ " is not defined"
 
-getFrameVar ((WithFrame objRef):fs) name =
-    do object <- liftAll $ readIORef objRef
-       getFrameVar' object fs name
-    where getFrameVar' :: Value -> [Frame] -> String -> Evaluate Value
-          getFrameVar' object fs name =
-              do value <- getOwnProp object name
-                 maybe (do proto <- prototypeOf object
-                           if isNull proto
-                              then getFrameVar fs name
-                              else getFrameVar' proto fs name)
-                       (return)
-                       (value)
-              
-
 getFrameVar (f:fs) name =
     do getOwnProp (frObject f) name
        >>= maybe (getFrameVar fs name)
                  (return)
 
 setFrameVar :: [Frame] -> String -> Value -> Evaluate Value
-setFrameVar ((WithFrame objRef):_) name value =
-    do putProp objRef name value
-       return value
-
 setFrameVar (f:_) name value =
     do putProp (getRef $ frObject f) name value
        return value

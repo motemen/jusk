@@ -35,7 +35,7 @@ data Env
 data Frame
     = GlobalFrame { frObject :: Value, frThis :: Value }
     | Activation { frObject :: Value, frThis :: Value }
-    | WithFrame { frWithObjRef :: IORef Value }
+    | WithFrame { frObject :: Value }
     deriving Show
 
 type Binding

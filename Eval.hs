@@ -5,7 +5,7 @@
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/10_Execution_Contexts.html
 -}
 
-module Eval (module Eval, Context.nullEnv, module JSType) where
+module Eval (module Eval, module JSType) where
 import qualified Data.Map as Map
 import Data.IORef
 import List
@@ -107,8 +107,8 @@ instance Eval Statement where
            returnCont CReturn value
 
     eval (STWith expr st) =
-        do Ref objRef <- getValue =<< eval expr
-           pushWithFrame objRef
+        do object <- getValue =<< eval expr
+           pushWithFrame object
            value <- eval st
            popFrame
            return value
