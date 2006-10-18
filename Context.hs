@@ -13,8 +13,8 @@ import DataTypes
 
 nullEnv :: [Flag] -> IO Env
 nullEnv flags =
-    do binding <- newIORef []
-       return $ Env { envFrames = [GlobalFrame binding Null], envContStack = [], envFlags = flags }
+    do global <- liftM Ref $ newIORef $ nullObject { objClass = "Global" }
+       return $ Env { envFrames = [GlobalFrame global global], envContStack = [], envFlags = flags }
 
 getEnv :: Evaluate Env
 getEnv = get
@@ -30,7 +30,7 @@ pushWithFrame objRef =
 
 pushNullFrame :: Value -> Evaluate ()
 pushNullFrame this =
-    do binding <- liftAll $ newIORef []
+    do binding <- makeRef $ nullObject { objClass = "Activation" }
        pushFrame this binding
 
 popFrame :: Evaluate ()
@@ -91,9 +91,8 @@ getThis = do env <- getEnv
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Binding
 bindParamArgs params args =
     do binding <- mapM zipArg $ zip params args
-       bRef <- liftAll $ newIORef binding
-       return bRef
-    where zipArg :: (Parameter, Value) -> Evaluate (String, Value)
+       return $ nullObject { objPropMap = mkPropMap binding, objClass = "Activation" }
+    where zipArg :: (Parameter, Value) -> Evaluate (String, Value, [PropertyAttribute])
           zipArg (param, arg) = 
               do argRef <- makeRef arg
-                 return (param, argRef)
+                 return (param, argRef, [])

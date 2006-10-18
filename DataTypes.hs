@@ -33,13 +33,13 @@ data Env
     deriving Show
 
 data Frame
-    = GlobalFrame { frBinding :: Binding, frThis :: Value }
-    | Activation { frBinding :: Binding, frThis :: Value }
+    = GlobalFrame { frObject :: Value, frThis :: Value }
+    | Activation { frObject :: Value, frThis :: Value }
     | WithFrame { frWithObjRef :: IORef Value }
     deriving Show
 
 type Binding
-    = IORef [(String, Value)]
+    = Value 
 
 type Cont
     = (ContType, Value -> Evaluate Value)
@@ -120,7 +120,7 @@ data Value
     deriving Show
 
 type NativeFunction
-    = ([Value] -> Evaluate Value)
+    = [Value] -> Evaluate Value
 
 data Number
     = Integer Integer
@@ -156,10 +156,8 @@ type RestParameter =
     Maybe Parameter
 
 data Exception
-    = TypeError String
-    | ReferenceError String
-    | NotDefined String
-    | InvalidAssignmentLeftSide
+    = ReferenceError String
+    | TypeError String
 {-
     内部でのみ使用
 -}
@@ -169,9 +167,6 @@ data Exception
 instance Show Exception where
     show (TypeError e)             = "TypeError: " ++ e
     show (ReferenceError msg)      = "ReferenceError: " ++ msg
-    show (NotDefined id)           = id ++ " is not defined"
-    show InvalidAssignmentLeftSide = "invalid assignment left-hand side"
-
     show (NotImplemented message) = "*** not implemented: " ++ message
 
 data ContType

@@ -57,12 +57,12 @@ getProp object p =
 
 -- [[Put]]
 putProp :: IORef Value -> String -> Value -> Evaluate ()
-putProp objRef p ref@(Ref _) =
+putProp objRef p valueRef@(Ref _) =
     do object <- liftAll $ readIORef objRef
        putProp' object
     where
         putProp' (Ref objRef) =
-            putProp objRef p ref
+            putProp objRef p valueRef
         putProp' object =
             do canPut <- canPut object p
                when (canPut)
@@ -71,12 +71,12 @@ putProp objRef p ref@(Ref _) =
                            objRef
                            (\object@Object { objPropMap = props }
                                 -> object {
-                                       objPropMap = Map.insert p (mkProp ref []) props
+                                       objPropMap = Map.insert p (mkProp valueRef []) props
                                    }))
 
 putProp objRef p value =
-    do ref <- liftAll $ liftM Ref $ newIORef value
-       putProp objRef p ref
+    do valueRef <- liftAll $ liftM Ref $ newIORef value
+       putProp objRef p valueRef
 
 -- [[CanPut]]
 canPut :: Value -> String -> Evaluate Bool
@@ -95,11 +95,12 @@ hasProperty object@(Object { objPropMap = props }) p =
           (Map.lookup p props)
 
 -- Reference の解決
--- TODO: throw ReferenceError
 getValue :: Value -> Evaluate Value
 getValue (Reference (baseRef, name)) =
-    do base <- lift $ liftIO $ readIORef baseRef
-       getProp base name >>= getValue
+    do base <- liftAll $ readIORef baseRef
+       if isNull base
+          then throw $ ReferenceError "null has no properties"
+          else getProp base name >>= getValue                
 
 getValue value =
     return value
@@ -110,7 +111,7 @@ putValue (Reference (baseRef, name)) value =
        return value
 
 putValue _ _ =
-    throw InvalidAssignmentLeftSide
+    throw $ ReferenceError "invalid assignment left-hand side"
 
 getVar :: String -> Evaluate Value
 getVar name =
@@ -128,8 +129,8 @@ isBound name =
        case frame of
             WithFrame objRef -> do object <- liftAll $ readIORef objRef
                                    hasProperty object name
-            _ -> do binding <- liftAll $ readIORef $ frBinding frame
-                    return $ maybe False (const True) (lookup name binding)
+            _ -> do object <- readRef $ frObject frame
+                    hasProperty object name
 
 defineVar :: String -> Value -> Evaluate Value
 defineVar name value =
@@ -142,21 +143,14 @@ defineVar name value =
             _ -> do defined <- isBound name
                     if defined 
                        then setVar name value >> return value
-                       else defineVar' name value
-    where defineVar' :: String -> Value -> Evaluate Value
-          defineVar' name value =
-              case value of
-                   Ref ref -> do value <- liftAll $ readIORef ref
-                                 defineVar' name value
-                   _ -> do bRef <- liftM frBinding currentFrame
-                           binding <- liftAll $ readIORef bRef
-                           valueRef <- makeRef value
-                           liftAll $ writeIORef bRef ((name, valueRef):binding)
-                           return value
+                       else do objRef <- liftM frObject currentFrame
+                               valueRef <- makeRef value
+                               putProp (getRef objRef) name valueRef
+                               return value
 
 getFrameVar :: [Frame] -> String -> Evaluate Value
 getFrameVar [] name =
-    throw $ NotDefined name
+    throw $ ReferenceError $ name ++ " is not defined"
 
 getFrameVar ((WithFrame objRef):fs) name =
     do object <- liftAll $ readIORef objRef
@@ -173,10 +167,9 @@ getFrameVar ((WithFrame objRef):fs) name =
               
 
 getFrameVar (f:fs) name =
-    do binding <- liftAll $ readIORef $ frBinding f
-       maybe (getFrameVar fs name)
-             (return)
-             (lookup name binding)
+    do getOwnProp (frObject f) name
+       >>= maybe (getFrameVar fs name)
+                 (return)
 
 setFrameVar :: [Frame] -> String -> Value -> Evaluate Value
 setFrameVar ((WithFrame objRef):_) name value =
@@ -184,10 +177,7 @@ setFrameVar ((WithFrame objRef):_) name value =
        return value
 
 setFrameVar (f:_) name value =
-    do binding <- liftAll $ readIORef $ frBinding f
-       maybe (warn $ "assignment to undeclared variable " ++ name)
-             (liftIO . (flip writeIORef value) . getRef)
-             (lookup name binding)
+    do putProp (getRef $ frObject f) name value
        return value
 
 warn :: String -> Evaluate ()
