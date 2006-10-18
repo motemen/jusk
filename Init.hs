@@ -12,6 +12,7 @@ import DataTypes
 import Context
 import qualified JSObject as Object
 import qualified JSArray as Array
+import qualified JSString as String
 import Internal
 import Eval
 
@@ -38,6 +39,12 @@ setupEnv =
                      objValue     = NativeFunction Array.function,
                      objPrototype = Array.prototypeObject,
                      objConstruct = NativeFunction Array.make
+                 }
+
+       defineVar "String"
+                 nullObject {
+                     objPropMap
+                         = mkPropMap [("prototype", String.prototypeObject, [DontEnum, DontDelete, ReadOnly])]
                  }
 
        defineVar "NaN" (Number NaN)

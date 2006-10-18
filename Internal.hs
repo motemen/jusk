@@ -183,13 +183,21 @@ getOwnProp (Function { }) "prototype" =
        getOwnProp object "prototype"
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
-getOwnProp (Array array) p
-    | p == "length" = return $ Just $ toValue $ length array
-    | otherwise =
-        case (runLex natural p) of
-             Left _  -> do a <- "prototype" `ofVar` "Array"
-                           getOwnProp a p
-             Right n -> return $ Just $ array !! (fromInteger n)
+getOwnProp (Array array) "length" =
+    return $ Just $ toValue $ length array
+
+getOwnProp (Array array) p =
+    case (runLex natural p) of
+         Left _  -> do prototype <- "prototype" `ofVar` "Array"
+                       getOwnProp prototype p
+         Right n -> return $ Just $ array !! (fromInteger n)
+
+getOwnProp (String string) "length" =
+    return $ Just $ toValue $ length string
+
+getOwnProp (String _) p =
+    do prototype <- "prototype" `ofVar` "String"
+       getOwnProp prototype p
 
 getOwnProp o p =
     do throw $ NotImplemented $ "getOwnProp: " ++ show o ++ " " ++ p
@@ -199,13 +207,14 @@ getOwnPropAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
 getOwnPropAttr object@(Object { }) p =
     return $ liftM propAttr $ Map.lookup p (objPropMap object)
 
-getOwnPropAttr (Array _) p
-    | p == "length" = return $ Just $ [DontEnum, DontDelete]
-    | otherwise =
-        case (runLex natural p) of
-             Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
-                           getOwnPropAttr a p
-             Right _ -> return $ Just $ []
+getOwnPropAttr (Array _) "length" =
+    return $ Just $ [DontEnum, DontDelete]
+
+getOwnPropAttr (Array _) p =
+    case (runLex natural p) of
+         Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
+                       getOwnPropAttr a p
+         Right _ -> return $ Just $ []
 
 getOwnPropAttr (Ref objRef) p =
     do object <- liftAll $ readIORef objRef
