@@ -23,28 +23,31 @@ nullEnv flags =
 
 setupEnv :: Evaluate ()
 setupEnv =
-    do defineVar "Object"
+    do objectProto <- makeRef Object.prototypeObject
+       defineVar "Object"
                  nullObject {
                      objPropMap
-                         = mkPropMap [("prototype", Object.prototypeObject, [DontEnum, DontDelete, ReadOnly])],
+                         = mkPropMap [("prototype", objectProto, [DontEnum, DontDelete, ReadOnly])],
                      objValue     = NativeFunction Object.function,
                      objPrototype = Object.prototypeObject,
                      objConstruct = NativeFunction Object.make
                  }
 
+       arrayProto <- makeRef Array.prototypeObject
        defineVar "Array"
                  nullObject {
                      objPropMap
-                         = mkPropMap [("prototype", Array.prototypeObject, [DontEnum, DontDelete, ReadOnly])],
+                         = mkPropMap [("prototype", arrayProto, [DontEnum, DontDelete, ReadOnly])],
                      objValue     = NativeFunction Array.function,
                      objPrototype = Array.prototypeObject,
                      objConstruct = NativeFunction Array.make
                  }
 
+       stringProto <- makeRef String.prototypeObject
        defineVar "String"
                  nullObject {
                      objPropMap
-                         = mkPropMap [("prototype", String.prototypeObject, [DontEnum, DontDelete, ReadOnly])]
+                         = mkPropMap [("prototype", stringProto, [DontEnum, DontDelete, ReadOnly])]
                  }
 
        defineVar "NaN" (Number NaN)

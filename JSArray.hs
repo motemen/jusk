@@ -24,6 +24,7 @@ prototypeObject =
                                 ("pop",         NativeFunction pop,            []),
                                 ("unshift",     NativeFunction unshift,        []),
                                 ("shift",       NativeFunction shift,          []),
+                                ("concat",      NativeFunction concatMethod,   []),
                                 ("join",        NativeFunction join,           [])
                                 ]
     }
@@ -92,18 +93,32 @@ shift _ =
             Array []    -> return Undefined
             Array array -> do liftAll $ modifyIORef (getRef thisRef)
                                                     (\(Array array) -> Array $ tail array)
-                              return $ last array
+                              return $ head array
 
 -- Array.prototype.toString
 toStringMethod :: NativeFunction
 toStringMethod _ = join []
 
+-- Array.prototype.concat
+concatMethod :: NativeFunction
+concatMethod args =
+    do this <- readRef =<< getThis
+       case this of
+            Array array -> do args <- mapM readRef args
+                              makeRef $ Array $ concatArgs array args
+    where concatArgs array [] =
+              array
+          concatArgs array ((Array array'):xs) =
+              concatArgs (array ++ array') xs
+          concatArgs array (x:xs) =
+              concatArgs (array ++ [x]) xs
+
 -- Array.prototype.join
 join :: NativeFunction
 join args =
-    do this <- getThis >>= readRef
+    do this <- readRef =<< getThis
        delim <- if null args then liftAll $ return "," else toString $ head args
        case this of
             Array array
                 -> do strs <- mapM toString array
-                      return $ String $ concat $ intersperse delim strs
+                      return $ toValue $ concat $ intersperse delim strs

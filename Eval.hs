@@ -183,9 +183,12 @@ instance Eval Expression where
            return $ Reference (baseRef, prop)
     
     eval (Operator "[]" [base, p]) =
-        do Ref baseRef <- makeRef =<< getValue =<< eval base -- XXX: あやしい
+        do objRef <- getValue =<< eval base
            prop <- toString =<< getValue =<< eval p
-           return $ Reference (baseRef, prop)
+           case objRef of
+                Ref baseRef -> return $ Reference (baseRef, prop)
+                object -> do objRef <- makeIORef object
+                             return $ Reference (objRef, prop)
     
     eval (Operator "()" (callee:args)) =
         do maybeRef <- eval callee
@@ -334,9 +337,9 @@ callFunction this (Ref objRef) args =
 callFunction this (Object { objValue = obj }) args =
     callFunction this obj args
 
-callFunction t o a =
-    throw $ NotImplemented
-          $ "callFunction:\n  this=" ++ show t ++ "\n  func=" ++ show o ++ "\n  args=" ++ show a
+callFunction _ object _ =
+    do objStr <- toString object
+       throw $ TypeError $ objStr ++ " is not a function"
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =

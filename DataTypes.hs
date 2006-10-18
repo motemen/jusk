@@ -225,7 +225,7 @@ instance Show (a -> b) where
     show _ = ""
 
 instance Show a => Show (IORef a) where
-    show x = show $ unsafePerformIO $ readIORef x
+    show x = "IORef " ++ (show $ unsafePerformIO $ readIORef x)
 
 makeRef :: Value -> Evaluate Value
 makeRef ref@(Ref _) = return ref
