@@ -60,27 +60,20 @@ getProp object p =
               (lift . return)
 
 -- [[Put]]
-putProp :: IORef Value -> String -> Value -> Evaluate ()
-putProp objRef p valueRef@(Ref _) =
-    do object <- liftAll $ readIORef objRef
-       putProp' object
-    where
-        putProp' (Ref objRef) =
-            putProp objRef p valueRef
-        putProp' object =
-            do canPut <- canPut object p
-               when (canPut)
-                    (liftAll
-                     $ modifyIORef
-                           objRef
-                           (\object@Object { objPropMap = props }
-                                -> object {
-                                       objPropMap = Map.insert p (mkProp valueRef []) props
-                                   }))
+putProp :: Value -> String -> Value -> Evaluate ()
+putProp ref@(Ref objRef) p value =
+    do object <- readRef ref
+       canPut <- canPut object p
+       value <- makeRef value
+       when (canPut)
+            (liftAll $ modifyIORef
+                       objRef
+                       (\object@Object { objPropMap = props }
+                             -> object { objPropMap = Map.insert p (mkProp value []) props }))
 
-putProp objRef p value =
-    do valueRef <- liftAll $ liftM Ref $ newIORef value
-       putProp objRef p valueRef
+putProp object _ _ =
+    do throw $ ReferenceError $ "cannot put property to " ++ show object
+       return ()
 
 -- [[CanPut]]
 canPut :: Value -> String -> Evaluate Bool
@@ -100,8 +93,8 @@ hasProperty object@(Object { objPropMap = props }) p =
 
 -- Reference の解決
 getValue :: Value -> Evaluate Value
-getValue (Reference (baseRef, name)) =
-    do base <- liftAll $ readIORef baseRef
+getValue (Reference baseRef name) =
+    do base <- readRef baseRef
        if isNull base
           then throw $ ReferenceError "null has no properties"
           else getProp base name >>= getValue                
@@ -110,7 +103,7 @@ getValue value =
     return value
 
 putValue :: Value -> Value -> Evaluate Value
-putValue (Reference (baseRef, name)) value =
+putValue (Reference baseRef name) value =
     do putProp baseRef name value
        return value
 
@@ -146,7 +139,7 @@ defineVar name value =
                        then setVar name value >> return value
                        else do objRef <- liftM frObject currentFrame
                                valueRef <- makeRef value
-                               putProp (getRef objRef) name valueRef
+                               putProp objRef name valueRef
                                return value
 
 getFrameVar :: [Frame] -> String -> Evaluate Value
@@ -160,7 +153,7 @@ getFrameVar (f:fs) name =
 
 setFrameVar :: [Frame] -> String -> Value -> Evaluate Value
 setFrameVar (f:_) name value =
-    do putProp (getRef $ frObject f) name value
+    do putProp (frObject f) name value
        return value
 
 warn :: String -> Evaluate ()

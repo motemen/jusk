@@ -128,7 +128,7 @@ toString (Number NaN)         = return "NaN"
 toString (NativeFunction _) =
     return "[native function]"
 
-toString ref@(Reference _) =
+toString ref@(Reference { }) =
     do object <- getValue ref
        toString object
 

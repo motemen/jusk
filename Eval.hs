@@ -88,7 +88,7 @@ instance Eval Statement where
 
     eval (STForIn (STVariableDefinition { varDefBindings = [(name, _)] }) object block) =
         withCC (CBreak Nothing) 
-               (do object <- readRef =<< evalR object
+               (do object <- readRef =<< getValue =<< eval object
                    props <- liftAll $ return $ Map.keys $ objPropMap object
                    liftM last $ mapM (\n -> do binding <- bindParamArgs [name] [String n]
                                                pushScope binding
@@ -137,7 +137,7 @@ instance Eval Statement where
                   do e <- getValue =<< eval e
                      m <- toBoolean =<< comparisonOp (==) value e 
                      if m
-                        then liftM last $ mapM (evalR . snd) clauses
+                        then liftM last $ mapM ((getValue =<<) . eval . snd) clauses
                         else evalSwitchStatement value cs defaultClause lastValue
 
     eval (STThrow expr) =
@@ -165,9 +165,8 @@ instance Eval Statement where
         where x ||| Void = x
               Void ||| y = y
 
-evalR :: (Eval a) => a -> Evaluate Value
-evalR x =
-    eval x >>= getValue
+evalValue :: (Eval a) => a -> Evaluate Value
+evalValue x = getValue =<< eval x
 
 -- Reference (Ref baseRef, p) の形になるまで評価する
 instance Eval Expression where
@@ -178,30 +177,27 @@ instance Eval Expression where
         getThis
     
     eval (Operator "[]" [Identifier name, p]) =
-        do baseRef <- liftM getRef $ getVar name
+        do baseRef <- getVar name
            prop <- toString =<< getValue =<< eval p
-           return $ Reference (baseRef, prop)
+           return $ Reference baseRef prop
     
     eval (Operator "[]" [base, p]) =
         do objRef <- getValue =<< eval base
            prop <- toString =<< getValue =<< eval p
-           case objRef of
-                Ref baseRef -> return $ Reference (baseRef, prop)
-                object -> do objRef <- makeIORef object
-                             return $ Reference (objRef, prop)
+           return $ Reference objRef prop
     
     eval (Operator "()" (callee:args)) =
         do maybeRef <- eval callee
            this <- liftAll $ return
                            $ case maybeRef of
-                                  Reference (baseRef, _) -> Ref baseRef
+                                  Reference base _ -> base
                                   _ -> Null
            callee <- getValue =<< eval callee
-           mapM evalR args >>= callFunction this callee 
+           mapM evalValue args >>= callFunction this callee 
     
     eval (Operator "new" (klass:args)) =
         do klass <- getValue =<< eval klass
-           args <- mapM evalR args
+           args <- mapM evalValue args
            new klass args
     
     eval (Operator "++" [x]) =
@@ -223,7 +219,7 @@ instance Eval Expression where
     eval (Operator op exprs) =
         if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
               then eval $ Let (head exprs) (Operator (init op) (tail exprs))
-              else do args <- mapM evalR exprs
+              else do args <- mapM evalValue exprs
                       args <- mapM readRef args
                       evalOperator op args
     
@@ -231,24 +227,23 @@ instance Eval Expression where
         do constructor <- getVar "Array"
            array <- new constructor []
            array <- liftAll $ liftM Ref $ newIORef array
-           items <- mapM evalR exprs
+           items <- mapM evalValue exprs
            callMethod array "push" items
            return array
     
     eval (ObjectLiteral pairs) =
         do constructor <- getVar "Object"
-           object <- new constructor []
-           objRef <- liftAll $ newIORef object
+           object <- makeRef =<< new constructor []
            mapM ((\(n,e) -> do n <- toString =<< eval n
                                p <- getValue =<< eval e
-                               putProp objRef n p)) pairs
-           return $ Ref objRef
+                               putProp object n p)) pairs
+           return object
     
     eval (List []) =
         return Void
     
     eval (List exprs) =
-        liftM last $ mapM evalR exprs
+        liftM last $ mapM evalValue exprs
     
     eval (Let (Identifier name) right) =
         do bound <- isBound name
@@ -334,12 +329,11 @@ callFunction this (Ref objRef) args =
     do object <- liftAll $ readIORef objRef
        callFunction this object args
 
-callFunction this (Object { objValue = obj }) args =
-    callFunction this obj args
+callFunction this (Object { objValue = func@Function { } }) args =
+    callFunction this func args
 
 callFunction _ object _ =
-    do objStr <- toString object
-       throw $ TypeError $ objStr ++ " is not a function"
+    throw $ TypeError $ show object ++ " is not a function"
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =

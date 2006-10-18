@@ -119,7 +119,7 @@ data Value
     内部でのみ使用
 -}
     | NativeFunction NativeFunction
-    | Reference (IORef Value, String)
+    | Reference { refBase :: Value, refName :: String }
     | Ref { getRef :: IORef Value }
     | Void
 
@@ -152,7 +152,7 @@ instance Show Value where
 
     show (NativeFunction _) = "<NativeFunction>"
 
-    show (Reference (baseRef, p)) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
+    show (Reference baseRef p) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
 
     show (Ref refObj) = "<Ref " ++ show refObj ++ ">"
 
@@ -309,7 +309,7 @@ isNativeFunction (NativeFunction _) = True
 isNativeFunction _ = False
 
 isReference :: Value -> Bool
-isReference (Reference _) = True
+isReference (Reference { }) = True
 isReference _ = False
 
 isRef :: Value -> Bool
