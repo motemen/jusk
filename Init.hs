@@ -47,6 +47,7 @@ setupEnv =
 
        defineVar "print" (NativeFunction print')
        defineVar "__print__" (NativeFunction printNative)
+       defineVar "p" (NativeFunction printNative)
        defineVar "__env__" (NativeFunction printEnv)
        defineVar "exit" (NativeFunction exit)
        
@@ -62,7 +63,6 @@ setupEnv =
              printNative :: NativeFunction
              printNative (x:_) =
                  do liftAll $ print x
-                    liftAll $ hFlush stdout
                     return Undefined
 
              printEnv :: NativeFunction

@@ -106,4 +106,4 @@ join args =
        case this of
             Array array
                 -> do strs <- mapM toString array
-                      return $ String $ foldl (++) "" $ intersperse delim strs
+                      return $ String $ concat $ intersperse delim strs

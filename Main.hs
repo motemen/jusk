@@ -31,20 +31,28 @@ run flags thunk =
        (setupEnv >> thunk) `runContT` (const $ return Void) `evalStateT` nullEnv
        return ()
 
+parse :: String -> Either ParseError JavaScriptProgram
+parse = runLex program
+
+printParseError :: String -> ParseError -> IO Value
+printParseError input err =
+    do ePutStrLn "parse error:"
+       ePutStrLn $ showError input err
+       return Void
+
+evalProgram :: JavaScriptProgram -> Evaluate Value
+evalProgram program =
+    do env <- getEnv
+       liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
+       if null program || ParseOnly `elem` (envFlags env)
+          then return Void
+          else liftM last $ mapM eval program
+
 evalText :: String -> Evaluate Value
 evalText input =
-    case runLex program input of
-         Left err ->
-            liftAll
-            $ do ePutStrLn "parse error:"
-                 ePutStrLn $ showError input err
-                 return Void
-         Right program ->
-             do env <- getEnv
-                liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
-                if null program || ParseOnly `elem` (envFlags env)
-                   then return Void
-                   else liftM last $ mapM eval program
+    case parse input of
+         Left err -> liftAll $ printParseError input err
+         Right program -> evalProgram program
 
 evalFile :: [Flag] -> String -> IO ()
 evalFile flags filename =
@@ -56,11 +64,18 @@ evalFile flags filename =
 runRepl' :: Evaluate ()
 runRepl' =
     do line <- liftAll (putStr "js> " >> hFlush stdout >> getLine)
-       value <- evalText line
+       value <- evalWithMoreInput line
        unless (isVoid value)
               (do string <- toString value
                   liftAll $ putStrLn string)
        runRepl'
+       where evalWithMoreInput input =
+                 do case parse input of
+                         Left err | isErrorAtEnd input err
+                                    -> do line <- liftAll (putStr "**> " >> hFlush stdout >> getLine)
+                                          evalWithMoreInput $ input ++ "\n" ++ line
+                         Left err | otherwise -> liftAll $ printParseError input err
+                         Right program -> evalProgram program
 
 runRepl :: [Flag] -> IO ()
 runRepl flags =

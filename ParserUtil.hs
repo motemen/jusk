@@ -31,6 +31,14 @@ runLex p input =
               ""
               input
 
+isErrorAtEnd :: String -> ParseError -> Bool
+isErrorAtEnd "" _ = True
+
+isErrorAtEnd source err =
+    let pos = errorPos err
+        in sourceLine pos == (length $ lines source) &&
+           sourceColumn pos == (length $ last $ lines source) + 1
+
 showError :: String -> ParseError -> String
 showError source err =
     let pos = errorPos err

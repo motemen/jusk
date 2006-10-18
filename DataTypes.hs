@@ -4,12 +4,13 @@
 -}
 
 module DataTypes where
-import Data.Map (Map)
+import Data.Map (Map, assocs)
 import qualified Data.Map as Map
 import Data.IORef
 import System.IO.Unsafe
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
+import List
 
 data Flag
     = Debug
@@ -117,7 +118,41 @@ data Value
     | Reference (IORef Value, String)
     | Ref { getRef :: IORef Value }
     | Void
-    deriving Show
+
+instance Show Value where
+    show Undefined = "undefined"
+    show Null      = "null"
+
+    show (Boolean True)  = "true"
+    show (Boolean False) = "false"
+
+    show (Number (Integer n)) = show n
+    show (Number (Double n))  = show n
+    show (Number NaN)         = "NaN"
+
+    show (String string) = show string
+
+    show (Array array) = "[" ++ concat ("," `intersperse` map show array) ++ "]"
+
+    show (Function { funcName = name, funcParam = params, funcBody = body }) =
+        "<Function " ++ maybe "" (++ " ") name ++ show params ++ " " ++ show body ++ ">"
+
+    show (Object { objPropMap = propMap, objPrototype = prototype, objClass = klass, objValue = value, objConstruct = construct}) =
+        "<Object {" ++ showMap propMap ++ "} #prototype:" ++ show prototype ++ " #class:" ++ show klass ++ " #value:" ++ show value ++ " #construct:" ++ show construct ++ ">"
+        where showMap mapData =
+                  concat $ ", " `intersperse` map showPair (assocs mapData)
+              showPair (k, v) =
+                  k ++ ": " ++ show v 
+
+    show (Exception e) = show e
+
+    show (NativeFunction _) = "<NativeFunction>"
+
+    show (Reference (baseRef, p)) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
+
+    show (Ref refObj) = "<Ref " ++ show refObj ++ ">"
+
+    show Void = "<Void>"
 
 type NativeFunction
     = [Value] -> Evaluate Value
@@ -130,7 +165,13 @@ data Number
 
 data PropertyPair
     = PropertyPair { propValue :: Value, propAttr :: [PropertyAttribute] }
-    deriving Show
+
+instance Show PropertyPair where
+    show (PropertyPair { propValue = value, propAttr = [] }) =
+        show value
+
+    show (PropertyPair { propValue = value, propAttr = attrs }) =
+        show value ++ "(" ++ concat ("," `intersperse` map show attrs) ++ ")"
 
 mkProp :: Value -> [PropertyAttribute] -> PropertyPair
 mkProp = PropertyPair
@@ -180,7 +221,7 @@ instance Show (a -> b) where
     show _ = ""
 
 instance Show a => Show (IORef a) where
-    show x = "IORef " ++ (show $ unsafePerformIO $ readIORef x)
+    show x = show $ unsafePerformIO $ readIORef x
 
 makeRef :: Value -> Evaluate Value
 makeRef ref@(Ref _) = return ref

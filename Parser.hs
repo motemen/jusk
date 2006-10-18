@@ -5,7 +5,7 @@
 -}
 
 -- Module definition {{{
-module Parser where
+module Parser (module Parser, Text.ParserCombinators.Parsec.ParseError) where
 import Text.ParserCombinators.Parsec hiding(Parser)
 import Monad
 import List
@@ -286,7 +286,9 @@ opString op = do reservedOp op
 
 --- Comma Operator
 expression :: ParserParameter -> Parser Expression
-expression p = liftM List $ (assignmentExpression p) `sepBy1` comma
+expression p = liftM toList $ (assignmentExpression p) `sepBy1` comma
+             where toList [x] = x
+                   toList xs = List xs
 -- }}}
 
 -- Statements {{{

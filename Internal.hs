@@ -30,21 +30,25 @@ prototypeOf :: Value -> Evaluate Value
 prototypeOf (Array _) =
     "prototype" `ofVar` "Array" 
 
-prototypeOf (Ref objRef) =
-    do object <- liftAll $ readIORef objRef
-       prototypeOf object
+prototypeOf ref@(Ref _) =
+    prototypeOf =<< readRef ref
 
-prototypeOf obj =
-    return $ case obj of
-                  Object { } -> objPrototype obj
-                  _ -> Null
+prototypeOf object@(Object { }) =
+    return $ objPrototype object
+
+prototypeOf _ =
+    return Null
 
 -- [[Class]]
 classOf :: Value -> Evaluate Value
-classOf obj =
-    return $ case obj of
-                  Object { } -> String $ objClass obj
-                  _ -> Null
+classOf ref@(Ref _) =
+    classOf =<< readRef ref
+
+classOf object@(Object { }) =
+    return $ String $ objClass object
+
+classOf _ =
+    return Null
 
 -- プロパティの取得/設定
 -- [[Get]]
