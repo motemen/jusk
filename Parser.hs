@@ -7,11 +7,8 @@
 -- Module definition {{{
 module Parser where
 import Text.ParserCombinators.Parsec hiding(Parser)
-import Text.ParserCombinators.Parsec.Pos
-import Text.ParserCombinators.Parsec.Error
 import Monad
 import List
-import Foreign
 import Data.Char (isDigit,digitToInt)
 
 import DataTypes

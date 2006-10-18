@@ -16,8 +16,6 @@ module Internal (
     ) where
 import qualified Data.Map as Map
 import Data.IORef
-import Monad
-import Control.Monad.Trans
 import Control.Monad.State
 import Maybe
 
@@ -160,7 +158,7 @@ getFrameVar :: [Frame] -> String -> Evaluate Value
 getFrameVar [] name =
     throw $ NotDefined name
 
-getFrameVar (f@(WithFrame objRef):fs) name =
+getFrameVar ((WithFrame objRef):fs) name =
     do object <- liftAll $ readIORef objRef
        getFrameVar' object fs name
     where getFrameVar' :: Value -> [Frame] -> String -> Evaluate Value
@@ -181,11 +179,11 @@ getFrameVar (f:fs) name =
              (lookup name binding)
 
 setFrameVar :: [Frame] -> String -> Value -> Evaluate Value
-setFrameVar ((WithFrame objRef):fs) name value =
+setFrameVar ((WithFrame objRef):_) name value =
     do putProp objRef name value
        return value
 
-setFrameVar (f:fs) name value =
+setFrameVar (f:_) name value =
     do binding <- liftAll $ readIORef $ frBinding f
        maybe (warn $ "assignment to undeclared variable " ++ name)
              (liftIO . (flip writeIORef value) . getRef)
@@ -228,13 +226,13 @@ getOwnPropAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
 getOwnPropAttr object@(Object { }) p =
     return $ liftM propAttr $ Map.lookup p (objPropMap object)
 
-getOwnPropAttr (Array array) p
+getOwnPropAttr (Array _) p
     | p == "length" = return $ Just $ [DontEnum, DontDelete]
     | otherwise =
         case (runLex natural p) of
              Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
                            getOwnPropAttr a p
-             Right n -> return $ Just $ []
+             Right _ -> return $ Just $ []
 
 getOwnPropAttr (Ref objRef) p =
     do object <- liftAll $ readIORef objRef

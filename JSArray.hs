@@ -7,7 +7,6 @@
 module JSArray where
 import Monad hiding(join)
 import List(intersperse)
-import Data.Map hiding(null)
 import Data.IORef
 
 import DataTypes

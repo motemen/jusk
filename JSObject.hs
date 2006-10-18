@@ -55,5 +55,5 @@ make (value:_) =
     return $ nullObject {
         objPrototype = prototypeObject,
         objClass     = "Object",
-        objDefault   = value
+        objValue     = value
     }

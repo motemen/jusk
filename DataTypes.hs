@@ -105,7 +105,7 @@ data Value
         --  内部プロパティ
         objPrototype :: Value,  -- [[Prototype]]
         objClass :: String,     -- [[Class]]
-        objDefault :: Value,    -- [[DefaultValue]]
+        objValue :: Value,      -- [[Value]]
         objConstruct :: Value   -- [[Construct]]
       }
     | Exception { exceptionBody :: Exception }
@@ -218,7 +218,7 @@ tidyNumber x = x
 nullObject :: Value
 nullObject = Object {
         objPropMap    = Map.empty,
-        objDefault    = Null,
+        objValue      = Null,
         objPrototype  = Null,
         objClass      = "Object",
         objConstruct  = Null

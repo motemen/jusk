@@ -3,21 +3,16 @@
     Eval.hs
     値の評価
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/10_Execution_Contexts.html
-    http://www.mozilla.org/js/language/js20/core/namespaces.html#property-lookup
 -}
 
 module Eval (module Eval, Context.nullEnv, module JSType) where
-import Monad
 import qualified Data.Map as Map
 import Data.IORef
 import List
 import Maybe
-import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 
 import DataTypes
-import Parser (numericLiteral)
-import ParserUtil (runLex)
 import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
 import Internal
@@ -137,7 +132,7 @@ instance Eval Statement where
               evalSwitchStatement value ((Nothing, st):cs) Nothing lastValue =
                   evalSwitchStatement value cs (Just st) lastValue
 
-              evalSwitchStatement value clauses@((Just e, st):cs) defaultClause lastValue =
+              evalSwitchStatement value clauses@((Just e, _):cs) defaultClause lastValue =
                   do e <- getValue =<< eval e
                      m <- toBoolean =<< comparisonOp (==) value e 
                      if m
@@ -325,7 +320,7 @@ callFunction this (Ref objRef) args =
     do object <- liftAll $ readIORef objRef
        callFunction this object args
 
-callFunction this (Object { objDefault = obj }) args =
+callFunction this (Object { objValue = obj }) args =
     callFunction this obj args
 
 callFunction t o a =

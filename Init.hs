@@ -5,9 +5,7 @@
 
 module Init where
 import IO
-import Control.Monad.Cont
 import Control.Monad.State
-import Data.Map
 
 import DataTypes
 import Context
@@ -22,7 +20,7 @@ setupEnv =
                  nullObject {
                      objPropMap
                          = mkPropMap [("prototype", Object.prototypeObject, [DontEnum, DontDelete, ReadOnly])],
-                     objDefault   = NativeFunction Object.function,
+                     objValue     = NativeFunction Object.function,
                      objPrototype = Object.prototypeObject,
                      objConstruct = NativeFunction Object.make
                  }
@@ -31,7 +29,7 @@ setupEnv =
                  nullObject {
                      objPropMap
                          = mkPropMap [("prototype", Array.prototypeObject, [DontEnum, DontDelete, ReadOnly])],
-                     objDefault   = NativeFunction Array.function,
+                     objValue     = NativeFunction Array.function,
                      objPrototype = Array.prototypeObject,
                      objConstruct = NativeFunction Array.make
                  }

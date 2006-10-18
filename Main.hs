@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fwarn-overlapping-patterns -fwarn-unused-binds -fwarn-unused-imports -fwarn-unused-matches #-}
 {-
     Main.hs
     - http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/
@@ -96,7 +95,7 @@ main =
        (flags, rest) <- parseOpts args
        maybe (case length rest of
                    0 -> runRepl flags
-                   1 -> evalFile flags $ rest !! 0)
+                   _ -> evalFile flags $ rest !! 0)
              (\(EvalStr string) -> run flags $ evalText string)
              (find isEvalStr flags)
     where isEvalStr (EvalStr _) = True

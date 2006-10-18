@@ -5,7 +5,6 @@ import Monad
 import Data.Bits
 
 import DataTypes
-import JSType
 import Eval
 import Context
 import Internal
@@ -74,7 +73,7 @@ bitwiseBinaryOp op n m =
 (.+.) :: Value -> Value -> Evaluate Value
 (.+.) x y =
     case (x, y) of
-         (Number n, Number m) -> numericBinaryOp (+) x y
+         (Number _, Number _) -> numericBinaryOp (+) x y
          _ -> do s <- toString x
                  t <- toString y
                  return $ String $ s ++ t
@@ -141,3 +140,4 @@ applyNumericOp op n m = Just $ (toDouble n) `op` (toDouble m)
 toDouble :: Number -> Double
 toDouble (Integer n) = fromIntegral n
 toDouble (Double n)  = n
+toDouble NaN = undefined
