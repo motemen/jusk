@@ -16,7 +16,7 @@ prototype = return $ Object { properties = [("constructor", NativeFunction JSBoo
 
 -- Boolean()
 function :: [Value] -> Evaluate Value
-function []    = return $ Boolean False
+function []    = return $ toValue False
 function (x:_) = liftM Boolean $ toBoolean x
 
 -- new Boolean()

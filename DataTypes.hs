@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fglasgow-exts #-}
 {-
     DataTypes.hs
     Haskell内部の型
@@ -22,6 +23,9 @@ data Flag
 
 class Eval a where
     eval :: a -> Evaluate Value
+
+class ToValue a where
+    toValue :: a -> Value
 
 type Evaluate a
     = ContT Value (StateT Env IO) a
@@ -319,3 +323,18 @@ isPrimitive (Boolean _) = True
 isPrimitive (Number _)  = True
 isPrimitive (String _)  = True
 isPrimitive _           = False
+
+instance ToValue Int where
+    toValue n = Number $ Integer $ toEnum n
+
+instance ToValue Integer where
+    toValue n = Number $ Integer n
+
+instance ToValue Double where
+    toValue n = Number $ Double n
+
+instance ToValue String where
+    toValue s = String s
+
+instance ToValue Bool where
+    toValue b = Boolean b

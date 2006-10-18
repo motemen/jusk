@@ -176,7 +176,8 @@ parenListExpression = liftM List (parens $ (assignmentExpression AllowIn) `sepBy
 --- Postfix Expressions
 postfixExpression :: Parser Expression
 postfixExpression =
-    do e <- withNoLineTerminator leftHandSideExpression
+    do e <- leftHandSideExpression
+       -- TODO NoLineTerminator
        e <- option e (do { reservedOp "++"; return $ Operator "_++" [e] }
                       <|> do { reservedOp "--"; return $ Operator "_--" [e] }) 
        whiteSpace
@@ -311,7 +312,7 @@ statement = block
 
 semicolon :: Parser ()
 semicolon = (semi >> return ())
-        <|> (symbol "}" >> putBack "}") 
+        <|> ((symbol "}" <?> "") >> putBack "}") 
         <|> lineTerminator
         <|> do pos <- getPosition
                st <- getState 

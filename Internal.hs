@@ -45,7 +45,7 @@ classOf ref@(Ref _) =
     classOf =<< readRef ref
 
 classOf object@(Object { }) =
-    return $ String $ objClass object
+    return $ toValue $ objClass object
 
 classOf _ =
     return Null
@@ -184,7 +184,7 @@ getOwnProp (Function { }) "prototype" =
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
 getOwnProp (Array array) p
-    | p == "length" = return $ Just $ Number $ Integer $ toEnum $ length array
+    | p == "length" = return $ Just $ toValue $ length array
     | otherwise =
         case (runLex natural p) of
              Left _  -> do a <- "prototype" `ofVar` "Array"

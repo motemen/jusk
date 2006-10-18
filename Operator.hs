@@ -68,7 +68,7 @@ bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
 bitwiseBinaryOp op n m =
     do n <- toInt n
        m <- toInt m
-       return $ Number $ Integer $ toEnum $ n `op` m
+       return $ toValue $ n `op` m
 
 (.+.) :: Value -> Value -> Evaluate Value
 (.+.) x y =
@@ -92,25 +92,25 @@ bitwiseBinaryOp op n m =
 (.~.) :: Value -> Evaluate Value
 (.~.) n =
     do n <- toInt n
-       return $ Number $ Integer $ toEnum $ complement n
+       return $ toValue $ complement n
 
 (.>>.) :: Value -> Value -> Evaluate Value
 (.>>.) n m =
     do n <- toInt n
        m <- liftM (0x1F .&.) (toUInt m)
-       return $ Number $ Integer $ toEnum $ n `shiftR` m
+       return $ toValue $ n `shiftR` m
 
 (.<<.) :: Value -> Value -> Evaluate Value
 (.<<.) n m =
     do n <- toInt n
        m <- liftM (0x1F .&.) (toUInt m)
-       return $ Number $ Integer $ toEnum $ n `shiftL` m
+       return $ toValue $ n `shiftL` m
 
 (.>>>.) :: Value -> Value -> Evaluate Value
 (.>>>.) n m =
     do n <- toUInt n
        m <- liftM (0x1F .&.) (toUInt m)
-       return $ Number $ Integer $ toEnum $ foldl clearBit (n `shiftR` m) [31,30..(31-m+1)]
+       return $ toValue $ foldl clearBit (n `shiftR` m) [31,30..(31-m+1)]
 
 inOperator :: Value -> Value -> Evaluate Value
 inOperator name object =

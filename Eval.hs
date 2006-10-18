@@ -17,6 +17,7 @@ import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
 import Internal
 import Context
+import qualified JSObject as Object
 
 instance Eval Statement where
     eval (STVariableDefinition bindings) =
@@ -302,13 +303,23 @@ evalOperator _ _ =
     return Undefined
 -- }}}
 
+-- [[Call]]
 callFunction :: Value -> Value -> [Value] -> Evaluate Value
-callFunction this (Function { funcParam = param, funcBody = body }) args =
-    do binding <- bindParamArgs param (args ++ repeat Undefined)
+callFunction this (callee@Function { funcParam = param, funcBody = body }) args =
+    do let arguments
+               = nullObject {
+                     objPropMap = mkPropMap
+                                  $ argProps ++
+                                    [("callee", callee, [DontEnum]),
+                                     ("length", toValue $ length args, [DontEnum])],
+                     objPrototype = Object.prototypeObject
+                 }
+       binding <- bindParamArgs ("arguments":param) ([arguments] ++ args ++ repeat Undefined)
        pushFrame this binding
        value <- withCC CReturn (eval body)
        popFrame
        return value
+    where argProps = zip3 (map show [0..]) (args) (repeat [DontEnum])
 
 callFunction this (NativeFunction nativeFunc) args =
     do pushNullFrame this

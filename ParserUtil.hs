@@ -37,7 +37,7 @@ isErrorAtEnd "" _ = True
 isErrorAtEnd source err =
     let pos = errorPos err
         in sourceLine pos == (length $ lines source) &&
-           sourceColumn pos == (length $ last $ lines source) + 1
+           sourceColumn pos > (length $ last $ lines source)
 
 showError :: String -> ParseError -> String
 showError source err =
@@ -303,10 +303,10 @@ angles p        = between (symbol "<") (symbol ">") p
 brackets p      = between (symbol "[") (symbol "]") p
 squares         = brackets
 
-semi            = symbol ";" 
-comma           = symbol ","
-dot             = symbol "."
-colon           = symbol ":"
+semi            = symbol ";" <?> ""
+comma           = symbol "," <?> ""
+dot             = symbol "." <?> ""
+colon           = symbol ":" <?> ""
 
 -- }}}
 
