@@ -13,7 +13,7 @@ module Internal (
         isBound,
         defineVar,
         warn,
-        (#), (<~)
+        (!), (<~)
     ) where
 import qualified Data.Map as Map
 import Data.IORef
@@ -29,7 +29,7 @@ import ParserUtil (natural,runLex)
 -- [[Prototype]]
 prototypeOf :: Value -> Evaluate Value
 prototypeOf (Array _) =
-    "prototype" `ofVar` "Array" 
+    prototypeOfVar "Array" 
 
 prototypeOf ref@(Ref _) =
     prototypeOf =<< readRef ref
@@ -54,9 +54,11 @@ classOf _ =
 -- プロパティの取得/設定
 -- [[Get]]
 getProp :: Value -> String -> Evaluate Value
-getProp (object@Object { objValue = value }) p =
+getProp (object@Object { objValue = value }) p | not $ isNull value =
     getOwnProp object p
-    >>= maybe (getProp value p) (lift . return)
+    >>= maybe (prototypeOf object >>= maybeNull (getProp value p)
+                                                (flip getProp p))
+              (lift . return)
 
 getProp object p =
     getOwnProp object p
@@ -73,8 +75,7 @@ putProp ref@(Ref objRef) p value =
        when (canPut)
             (liftAll $ modifyIORef
                        objRef
-                       (\object@Object { objPropMap = props }
-                             -> object { objPropMap = Map.insert p (mkProp value []) props }))
+                       (\object@Object { } -> object { objPropMap = Map.insert p (mkProp value []) (objPropMap object) }))
 
 putProp object _ _ =
     do throw $ ReferenceError $ "cannot put property to " ++ show object
@@ -143,9 +144,9 @@ defineVar name value =
             _ -> do defined <- isBound name
                     if defined 
                        then setVar name value >> return value
-                       else do objRef <- liftM frObject currentFrame
+                       else do frameObject <- liftM frObject currentFrame
                                valueRef <- makeRef value
-                               putProp objRef name valueRef
+                               frameObject ! name <~ valueRef
                                return value
 
 getFrameVar :: [Frame] -> String -> Evaluate Value
@@ -159,7 +160,7 @@ getFrameVar (f:fs) name =
 
 setFrameVar :: [Frame] -> String -> Value -> Evaluate Value
 setFrameVar (f:_) name value =
-    do putProp (frObject f) name value
+    do frObject f ! name <~ value
        return value
 
 warn :: String -> Evaluate ()
@@ -178,10 +179,10 @@ getOwnProp (Ref objRef) p =
        getOwnProp object p
 
 getOwnProp (Function { }) "prototype" =
-    liftM return $ "prototype" `ofVar` "Object"
+    liftM return $ prototypeOfVar "Object"
 
 getOwnProp (Function { }) p =
-    do proto <- "prototype" `ofVar` "Function"
+    do proto <- prototypeOfVar "Function"
        getOwnProp proto p
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
@@ -190,7 +191,7 @@ getOwnProp (Array array) "length" =
 
 getOwnProp (Array array) p =
     case (runLex natural p) of
-         Left _  -> do prototype <- "prototype" `ofVar` "Array"
+         Left _  -> do prototype <- prototypeOfVar "Array"
                        getOwnProp prototype p
          Right n -> return $ Just $ array !! (fromInteger n)
 
@@ -198,7 +199,7 @@ getOwnProp (String string) "length" =
     return $ Just $ toValue $ length string
 
 getOwnProp (String _) p =
-    do proto <- "prototype" `ofVar` "String"
+    do proto <- prototypeOfVar "String"
        getOwnProp proto p
 
 getOwnProp o p =
@@ -214,7 +215,7 @@ getOwnPropAttr (Array _) "length" =
 
 getOwnPropAttr (Array _) p =
     case (runLex natural p) of
-         Left _  -> do a <- getVar "Array" >>= flip getProp "prototype"
+         Left _  -> do a <- prototypeOfVar "Array"
                        getOwnPropAttr a p
          Right _ -> return $ Just $ []
 
@@ -226,13 +227,13 @@ maybeNull :: a -> (Value -> a) -> Value -> a
 maybeNull x _ Null = x
 maybeNull _ r v = r v
 
-ofVar :: String -> String -> Evaluate Value
-ofVar prop varName =
+prototypeOfVar :: String -> Evaluate Value
+prototypeOfVar varName =
     do var <- getVar varName
-       getProp var prop
+       getProp var "prototype"
 
-(#) :: Value -> String -> Value
-(#) = Reference
+(!) :: Value -> String -> Value
+(!) = Reference
 
 (<~) :: Value -> Value -> Evaluate Value
 (<~) = putValue

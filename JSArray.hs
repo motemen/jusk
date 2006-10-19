@@ -50,7 +50,7 @@ push [] =
 
 push xs =
     do thisRef <- getThis
-       this <- readRef thisRef -- Must be a reference
+       this <- readRef thisRef
        liftAll $ case this of
                       Array _ -> modifyIORef (getRef thisRef)
                                              (\(Array array) -> Array $ array ++ xs)

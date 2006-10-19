@@ -48,9 +48,10 @@ setupEnv =
                         objPropMap   = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])],
                         objPrototype = Function.prototypeObject,
                         objValue     = NativeFunction function,
-                        objConstruct = NativeFunction construct
+                        objConstruct = NativeFunction construct,
+                        objName      = name
                     }
-                    constructor # "prototype" # "constructor" <~ constructor
+                    constructor ! "prototype" ! "constructor" <~ constructor
                     defineVar name constructor
 
              print' :: NativeFunction
@@ -68,7 +69,7 @@ setupEnv =
              printEnv :: NativeFunction
              printEnv _ =
                 do env <- getEnv
-                   liftAll $ print env
+                   liftAll $ print $ env { envFrames = tail $ envFrames env }
                    return Undefined
 
              exit :: NativeFunction

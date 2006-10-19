@@ -73,10 +73,8 @@ instance Eval Statement where
               
     eval (STFor initialize condition update block) =
         withCC (CBreak Nothing)
-               (do pushNullScope
-                   eval initialize
+               (do eval initialize
                    value <- evalForBlock Void
-                   popScope
                    return value)
         where evalForBlock lastValue =
                   do value <- toBoolean =<< eval condition
@@ -235,8 +233,7 @@ instance Eval Expression where
     
     eval (ArrayLiteral exprs) =
         do constructor <- getVar "Array"
-           array <- construct constructor []
-           array <- liftAll $ liftM Ref $ newIORef array
+           array <- makeRef =<< construct constructor []
            items <- mapM evalValue exprs
            callMethod array "push" items
            return array
@@ -246,7 +243,7 @@ instance Eval Expression where
            object <- makeRef =<< construct constructor []
            mapM ((\(n,e) -> do n <- toString =<< eval n
                                p <- getValue =<< eval e
-                               putProp object n p)) pairs
+                               object ! n <~ p)) pairs
            return object
     
     eval (List []) =

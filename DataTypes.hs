@@ -106,9 +106,10 @@ data Value
 
         --  内部プロパティ
         objPrototype :: Value,  -- [[Prototype]]
-        objClass :: String,     -- [[Class]]
-        objValue :: Value,      -- [[Value]]
-        objConstruct :: Value   -- [[Construct]]
+        objClass     :: String, -- [[Class]]
+        objValue     :: Value,  -- [[Value]]
+        objConstruct :: Value,  -- [[Construct]]
+        objName      :: String
       }
     | Exception { exceptionBody :: Exception }
 --  | RegularExpression
@@ -139,8 +140,8 @@ instance Show Value where
     show (Function { funcName = name, funcParam = params, funcBody = body }) =
         "<Function " ++ maybe "" (++ " ") name ++ show params ++ " " ++ show body ++ ">"
 
-    show (Object { objPropMap = propMap, objPrototype = prototype, objClass = klass, objValue = value, objConstruct = construct}) =
-        "<Object {" ++ showMap propMap ++ "} #prototype:" ++ showShallow prototype ++ " #class:" ++ show klass ++ " #value:" ++ show value ++ " #construct:" ++ showShallow construct ++ ">"
+    show (Object { objPropMap = propMap, objPrototype = prototype, objClass = klass, objValue = value, objConstruct = construct, objName = name }) =
+        "<Object" ++ (if null name then "" else " " ++ show name) ++ " {" ++ showMap propMap ++ "} #prototype:" ++ showShallow prototype ++ " #class:" ++ show klass ++ " #value:" ++ show value ++ " #construct:" ++ showShallow construct ++ ">"
         where showMap mapData =
                   concat $ ", " `intersperse` map showPair (assocs mapData)
               showPair (k, v) =
@@ -158,7 +159,10 @@ instance Show Value where
 
 showShallow :: Value -> String
 showShallow (Function { }) = "<Function ...>"
-showShallow (Object { })   = "<Object ...>"
+
+showShallow (Object { objName = "" })   = "<Object ...>"
+showShallow (Object { objName = name }) = "<Object " ++ name ++ ">"
+
 showShallow (Ref refObj)   = "<Ref " ++ (showShallow $ unsafePerformIO $ readIORef $ refObj) ++ ">"
 showShallow x = show x
 
@@ -270,7 +274,8 @@ nullObject = Object {
         objValue      = Null,
         objPrototype  = Null,
         objClass      = "Object",
-        objConstruct  = Null
+        objConstruct  = Null,
+        objName       = ""
     }
 
 isUndefined :: Value -> Bool

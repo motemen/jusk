@@ -5,10 +5,12 @@
 -}
 
 module JSFunction where
+import Monad
 
 import DataTypes
 import PrettyShow
 import Context
+import JSType
 
 -- Function.prototype
 prototypeObject :: Value
@@ -21,10 +23,15 @@ prototypeObject =
 toStringMethod :: NativeFunction
 toStringMethod _ =
     do this <- readRef =<< getThis
-       case this of
-            Function { } -> return $ toValue $ prettyShow this
-            Object { objValue = func@Function { } } -> return $ toValue $ prettyShow func
-            _ -> throw $ TypeError ""
+       showFunc this
+    where showFunc func@Function { } =
+              return $ toValue $ prettyShow func
+          showFunc func@(NativeFunction _) =
+              liftM toValue $ toString func
+          showFunc (Object { objValue = func }) =
+              showFunc func
+          showFunc x =
+              throw $ TypeError $ "Function.prototype.toString: " ++ show x ++ " is not a function"
 
 -- Function()
 function :: NativeFunction
