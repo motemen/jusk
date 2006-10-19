@@ -198,7 +198,7 @@ instance Eval Expression where
     eval (Operator "new" (klass:args)) =
         do klass <- getValue =<< eval klass
            args <- mapM evalValue args
-           new klass args
+           construct klass args
     
     eval (Operator "++" [x]) =
         eval $ Let x (Operator "+" [x, Literal $ Number $ Integer 1])
@@ -216,6 +216,16 @@ instance Eval Expression where
            eval $ Operator "--" [x]
            return value
 
+    eval (Operator "===" [x, y]) =
+        do x <- evalValue x
+           y <- evalValue y
+           return $ toValue $ x == y
+
+    eval (Operator "!==" [x, y]) =
+        do x <- evalValue x
+           y <- evalValue y
+           return $ toValue $ x /= y
+
     eval (Operator op exprs) =
         if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
               then eval $ Let (head exprs) (Operator (init op) (tail exprs))
@@ -225,7 +235,7 @@ instance Eval Expression where
     
     eval (ArrayLiteral exprs) =
         do constructor <- getVar "Array"
-           array <- new constructor []
+           array <- construct constructor []
            array <- liftAll $ liftM Ref $ newIORef array
            items <- mapM evalValue exprs
            callMethod array "push" items
@@ -233,7 +243,7 @@ instance Eval Expression where
     
     eval (ObjectLiteral pairs) =
         do constructor <- getVar "Object"
-           object <- makeRef =<< new constructor []
+           object <- makeRef =<< construct constructor []
            mapM ((\(n,e) -> do n <- toString =<< eval n
                                p <- getValue =<< eval e
                                putProp object n p)) pairs
@@ -340,20 +350,33 @@ callMethod object name args =
     do method <- getProp object name
        callFunction object method args
 
--- new Foo(arg1, arg2, ...)
--- TODO
-new :: Value -> [Value] -> Evaluate Value
-new (Object { objConstruct = NativeFunction constructor }) args = 
-    constructor args
+-- [[Construct]]
+construct :: Value -> [Value] -> Evaluate Value
+construct (constructorObj@Object { objConstruct = NativeFunction constructor }) args = 
+    do proto <- getProp constructorObj "prototype"
+       object <- makeRef =<< constructor args
+       liftAll $ modifyIORef (getRef object) $ setPrototype proto
+       return object
+    where setPrototype proto object@(Object { }) = object { objPrototype = proto }
+          setPrototype _ x = x
 
-new (constructor@Function { }) args = 
-    do prototype <- getProp constructor "prototype"
-       object <- liftAll $ liftM Ref $ newIORef $ nullObject { objPrototype = prototype }
+construct (constructor@Function { }) args = 
+    do proto <- getProp constructor "prototype"
+       object <- makeRef $ nullObject { objPrototype = proto }
        callFunction object constructor args
        return object
 
-new (ref@Ref { }) args =
-    readRef ref >>= flip new args
+construct constructor@(NativeFunction _) args =
+    do prototype <- getProp constructor "prototype"
+       object <- makeRef $ nullObject { objPrototype = prototype }
+       callFunction object constructor args
+       return object
+
+construct (ref@Ref { }) args =
+    readRef ref >>= flip construct args
+
+construct c _ =
+    throw $ TypeError $ show c ++ " is not a constructor"
 
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =

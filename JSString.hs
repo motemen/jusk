@@ -5,9 +5,11 @@
 -}
 
 module JSString where
+import Monad
 
 import DataTypes
 import Context
+import JSType
 
 -- String.prototype
 prototypeObject :: Value
@@ -16,6 +18,22 @@ prototypeObject =
         objPropMap = mkPropMap [("toString", NativeFunction toStringMethod, []),
                                 ("valueOf",  NativeFunction valueOfMethod, [])]
     }
+
+-- String()
+function :: NativeFunction
+function [] = return $ String ""
+
+function (x:_) = liftM String $ toString x
+
+-- new String()
+constructor :: NativeFunction
+constructor args =
+    do string <- function args
+       return $ nullObject {
+           objPrototype = prototypeObject,
+           objClass     = "String",
+           objValue     = string
+       }
 
 toStringMethod :: NativeFunction
 toStringMethod _ =

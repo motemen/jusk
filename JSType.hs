@@ -30,6 +30,9 @@ toPrimitive num@(Number _) _ =
 toPrimitive string@(String _) _ =
     return string
 
+toPrimitive ref@(Ref _) preferredType =
+    flip toPrimitive preferredType =<< readRef ref
+
 toPrimitive object preferredType =
     defaultValue object preferredType
 
@@ -140,8 +143,11 @@ toString (Exception e) =
     return $ show e
 
 toString object = 
-    do String s <- callMethod object "toString" []
-       return s
+    do s <- callMethod object "toString" []
+       case s of
+            String s -> return s
+            Object { } -> let String x = objValue s
+                              in return x
 
 toObject :: Value -> Evaluate Value
 toObject Undefined =

@@ -5,16 +5,31 @@
 -}
 
 module JSFunction where
-import Data.IORef
 
-import Internal
+import DataTypes
+import PrettyShow
+import Context
 
 -- Function.prototype
-prototype :: Evaluate Value
-prototype = return $ Object [] []
+prototypeObject :: Value
+prototypeObject =
+    nullObject {
+        objPropMap = mkPropMap [("constructor", NativeFunction constructor, []),
+                                ("toString", NativeFunction toStringMethod, [])]
+    }
+
+toStringMethod :: NativeFunction
+toStringMethod _ =
+    do this <- readRef =<< getThis
+       case this of
+            Function { } -> return $ toValue $ prettyShow this
+            Object { objValue = func@Function { } } -> return $ toValue $ prettyShow func
+            _ -> throw $ TypeError ""
 
 -- Function()
---function :: [Value] -> Evaluate Value
+function :: NativeFunction
+function args = constructor args
 
 -- new Function()
---new :: [Value] -> Evaluate Value
+constructor :: NativeFunction
+constructor _ = throw $ NotImplemented $ "Function.prototype.constructor"

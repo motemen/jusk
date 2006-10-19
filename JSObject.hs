@@ -15,8 +15,7 @@ import Internal
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = mkPropMap [("constructor", NativeFunction make, []),
-                                ("toString",    NativeFunction toString, [])] ,
+        objPropMap = mkPropMap [("toString", NativeFunction toStringMethod, [])] ,
         objClass = "Object"
     }
 
@@ -24,13 +23,9 @@ prototypeObject =
 function :: NativeFunction
 function [] = create []
 
--- new Object()
-new :: NativeFunction
-new _ = create []
-
 -- Object.prototype.toString
-toString :: NativeFunction
-toString _ =
+toStringMethod :: NativeFunction
+toStringMethod _ =
     do this <- getThis
        String klass <- classOf this
        return $ String $ "[object " ++ klass ++ "]"
@@ -44,14 +39,14 @@ create props =
     }
     where withNoAttr (name, value) = (name, mkProp value [])
 
-make :: NativeFunction
-make [] =
+constructor :: NativeFunction
+constructor [] =
     return $ nullObject {
         objPrototype = prototypeObject,
         objClass     = "Object"
     }
 
-make (value:_) =
+constructor (value:_) =
     return $ nullObject {
         objPrototype = prototypeObject,
         objClass     = "Object",

@@ -13,6 +13,7 @@ import Context
 import qualified JSObject as Object
 import qualified JSArray as Array
 import qualified JSString as String
+import qualified JSFunction as Function
 import Internal
 import Eval
 
@@ -23,32 +24,10 @@ nullEnv flags =
 
 setupEnv :: Evaluate ()
 setupEnv =
-    do objectProto <- makeRef Object.prototypeObject
-       defineVar "Object"
-                 nullObject {
-                     objPropMap
-                         = mkPropMap [("prototype", objectProto, [DontEnum, DontDelete, ReadOnly])],
-                     objValue     = NativeFunction Object.function,
-                     objPrototype = Object.prototypeObject,
-                     objConstruct = NativeFunction Object.make
-                 }
-
-       arrayProto <- makeRef Array.prototypeObject
-       defineVar "Array"
-                 nullObject {
-                     objPropMap
-                         = mkPropMap [("prototype", arrayProto, [DontEnum, DontDelete, ReadOnly])],
-                     objValue     = NativeFunction Array.function,
-                     objPrototype = Array.prototypeObject,
-                     objConstruct = NativeFunction Array.make
-                 }
-
-       stringProto <- makeRef String.prototypeObject
-       defineVar "String"
-                 nullObject {
-                     objPropMap
-                         = mkPropMap [("prototype", stringProto, [DontEnum, DontDelete, ReadOnly])]
-                 }
+    do defineConstructor "Object"   Object.prototypeObject   Object.function   Object.constructor
+       defineConstructor "Array"    Array.prototypeObject    Array.function    Array.constructor
+       defineConstructor "String"   String.prototypeObject   String.function   String.constructor
+       defineConstructor "Function" Function.prototypeObject Function.function Function.constructor
 
        defineVar "NaN" (Number NaN)
        defineVar "Infinity" (Number $ Double $ 1 / 0)
@@ -63,7 +42,18 @@ setupEnv =
        
        return ()
 
-       where print' :: NativeFunction
+       where defineConstructor name prototypeObject function construct =
+                 do proto <- makeRef prototypeObject
+                    constructor <- makeRef nullObject {
+                        objPropMap   = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])],
+                        objPrototype = Function.prototypeObject,
+                        objValue     = NativeFunction function,
+                        objConstruct = NativeFunction construct
+                    }
+                    constructor # "prototype" # "constructor" <~ constructor
+                    defineVar name constructor
+
+             print' :: NativeFunction
              print' [] = print' [Undefined]
              print' (x:_) =
                  do string <- toString x

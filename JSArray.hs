@@ -18,7 +18,7 @@ import Eval
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = mkPropMap [("constructor", NativeFunction make,           []),
+        objPropMap = mkPropMap [("constructor", NativeFunction constructor,    []),
                                 ("toString",    NativeFunction toStringMethod, []),
                                 ("push",        NativeFunction push,           []),
                                 ("pop",         NativeFunction pop,            []),
@@ -31,14 +31,14 @@ prototypeObject =
 
 -- Array()
 function :: NativeFunction
-function = make
+function = constructor
 
 -- new Array()
-make :: NativeFunction
-make [Number (Integer n)] =
+constructor :: NativeFunction
+constructor [Number (Integer n)] =
     return $ Array $ take (fromInteger n) (repeat Undefined)
 
-make xs =
+constructor xs =
     return $ Array xs
 
 -- Array.prototype.push

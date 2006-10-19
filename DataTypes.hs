@@ -4,7 +4,7 @@
     Haskell内部の型
 -}
 
-module DataTypes where
+module DataTypes (module DataTypes) where
 import Data.Map (Map, assocs)
 import qualified Data.Map as Map
 import Data.IORef
@@ -74,22 +74,19 @@ data Statement
     | STReturn (Maybe Expression)
     | STThrow Expression
     | STTry { tryClause :: Statement, tryCatchClause :: Maybe (Parameter, Statement), tryFinallyClause :: Maybe Statement }
-    deriving Show
+    deriving (Show, Eq)
 
 data Expression
     = Keyword String
     | Punctuator String
     | Identifier String
-    | QualifiedIdentifier (Expression, String)
     | Literal Value
     | ArrayLiteral [Expression]
     | ObjectLiteral [(Expression, Expression)]
     | List [Expression]
-    | LineBreak
-    | EndOfInput
     | Operator { opOperator :: String, opArgs :: [Expression] }
     | Let { letLeft :: Expression, letRight :: Expression }
-    deriving Show
+    deriving (Show, Eq)
 
 data Value
     = Undefined
@@ -122,6 +119,7 @@ data Value
     | Reference { refBase :: Value, refName :: String }
     | Ref { getRef :: IORef Value }
     | Void
+    deriving Eq
 
 instance Show Value where
     show Undefined = "undefined"
@@ -142,11 +140,11 @@ instance Show Value where
         "<Function " ++ maybe "" (++ " ") name ++ show params ++ " " ++ show body ++ ">"
 
     show (Object { objPropMap = propMap, objPrototype = prototype, objClass = klass, objValue = value, objConstruct = construct}) =
-        "<Object {" ++ showMap propMap ++ "} #prototype:" ++ show prototype ++ " #class:" ++ show klass ++ " #value:" ++ show value ++ " #construct:" ++ show construct ++ ">"
+        "<Object {" ++ showMap propMap ++ "} #prototype:" ++ showShallow prototype ++ " #class:" ++ show klass ++ " #value:" ++ show value ++ " #construct:" ++ showShallow construct ++ ">"
         where showMap mapData =
                   concat $ ", " `intersperse` map showPair (assocs mapData)
               showPair (k, v) =
-                  k ++ ": " ++ show v 
+                  k ++ ": " ++ show v
 
     show (Exception e) = show e
 
@@ -154,12 +152,21 @@ instance Show Value where
 
     show (Reference baseRef p) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
 
-    show (Ref refObj) = "<Ref " ++ show refObj ++ ">"
+    show (Ref refObj) = "<Ref " ++ (show $ unsafePerformIO $ readIORef refObj) ++ ">"
 
     show Void = "<Void>"
 
+showShallow :: Value -> String
+showShallow (Function { }) = "<Function ...>"
+showShallow (Object { })   = "<Object ...>"
+showShallow (Ref refObj)   = "<Ref " ++ (showShallow $ unsafePerformIO $ readIORef $ refObj) ++ ">"
+showShallow x = show x
+
 type NativeFunction
     = [Value] -> Evaluate Value
+
+instance Eq (a -> b) where
+    (/=) _ _ = True
 
 data Number
     = Integer Integer
@@ -169,13 +176,14 @@ data Number
 
 data PropertyPair
     = PropertyPair { propValue :: Value, propAttr :: [PropertyAttribute] }
+    deriving Eq
 
 instance Show PropertyPair where
     show (PropertyPair { propValue = value, propAttr = [] }) =
-        show value
+        showShallow value
 
     show (PropertyPair { propValue = value, propAttr = attrs }) =
-        show value ++ "(" ++ concat ("," `intersperse` map show attrs) ++ ")"
+        showShallow value ++ "(" ++ concat ("," `intersperse` map show attrs) ++ ")"
 
 mkProp :: Value -> [PropertyAttribute] -> PropertyPair
 mkProp = PropertyPair
@@ -208,6 +216,7 @@ data Exception
 -}
     | NotImplemented String
     | SysExit
+    deriving Eq
 
 instance Show Exception where
     show (TypeError e)             = "TypeError: " ++ e

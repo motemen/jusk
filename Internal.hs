@@ -12,7 +12,8 @@ module Internal (
         getVar, setVar,
         isBound,
         defineVar,
-        warn
+        warn,
+        (#), (<~)
     ) where
 import qualified Data.Map as Map
 import Data.IORef
@@ -53,6 +54,10 @@ classOf _ =
 -- プロパティの取得/設定
 -- [[Get]]
 getProp :: Value -> String -> Evaluate Value
+getProp (object@Object { objValue = value }) p =
+    getOwnProp object p
+    >>= maybe (getProp value p) (lift . return)
+
 getProp object p =
     getOwnProp object p
     >>= maybe (prototypeOf object >>= maybeNull (lift $ return Undefined)
@@ -104,7 +109,8 @@ getValue value =
 
 putValue :: Value -> Value -> Evaluate Value
 putValue (Reference baseRef name) value =
-    do putProp baseRef name value
+    do baseRef <- getValue baseRef
+       putProp baseRef name value
        return value
 
 putValue _ _ =
@@ -172,8 +178,11 @@ getOwnProp (Ref objRef) p =
        getOwnProp object p
 
 getOwnProp (Function { }) "prototype" =
-    do object <- getVar "Object"
-       getOwnProp object "prototype"
+    liftM return $ "prototype" `ofVar` "Object"
+
+getOwnProp (Function { }) p =
+    do proto <- "prototype" `ofVar` "Function"
+       getOwnProp proto p
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
 getOwnProp (Array array) "length" =
@@ -189,11 +198,11 @@ getOwnProp (String string) "length" =
     return $ Just $ toValue $ length string
 
 getOwnProp (String _) p =
-    do prototype <- "prototype" `ofVar` "String"
-       getOwnProp prototype p
+    do proto <- "prototype" `ofVar` "String"
+       getOwnProp proto p
 
 getOwnProp o p =
-    do throw $ NotImplemented $ "getOwnProp: " ++ show o ++ " " ++ p
+    do warn $ show $ NotImplemented $ "getOwnProp: " ++ show o ++ " " ++ p
        return Nothing
 
 getOwnPropAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
@@ -221,3 +230,9 @@ ofVar :: String -> String -> Evaluate Value
 ofVar prop varName =
     do var <- getVar varName
        getProp var prop
+
+(#) :: Value -> String -> Value
+(#) = Reference
+
+(<~) :: Value -> Value -> Evaluate Value
+(<~) = putValue

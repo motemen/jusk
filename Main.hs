@@ -18,6 +18,7 @@ import DataTypes
 import Context
 import Eval
 import Init
+import PrettyShow
 
 ePutStrLn :: String -> IO ()
 ePutStrLn = hPutStrLn stderr
@@ -43,7 +44,8 @@ printParseError input err =
 evalProgram :: JavaScriptProgram -> Evaluate Value
 evalProgram program =
     do env <- getEnv
-       liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
+--     liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
+       liftAll $ when (Debug `elem` (envFlags env)) (mapM_ (ePutStrLn . prettyShow) program)
        if null program || ParseOnly `elem` (envFlags env)
           then return Void
           else liftM last $ mapM eval program
