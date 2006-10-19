@@ -9,6 +9,7 @@ import Text.ParserCombinators.Parsec.Pos
 import Text.ParserCombinators.Parsec.Error
 import Data.Char (digitToInt)
 import List
+import Monad
 
 import DataTypes
 
@@ -17,12 +18,12 @@ data ParserParameter
     | NoIn
     deriving Show
     
-data ParserState = ParserState { stAllowLT :: Bool, stSourcePos :: SourcePos }
+data ParserState = ParserState { stSeenLT :: Bool, stLTPos :: SourcePos }
 
 type Parser a = GenParser Char ParserState a
 
 initialState :: ParserState
-initialState = ParserState { stAllowLT = True, stSourcePos = newPos "" (-1) (-1) }
+initialState = ParserState { stSeenLT = False, stLTPos = newPos "" (-1) (-1) }
 
 runLex :: Parser a -> String -> Either ParseError a
 runLex p input =
@@ -43,7 +44,9 @@ showError :: String -> ParseError -> String
 showError source err =
     let pos = errorPos err
         in unlines
-           $ [lines source !! (sourceLine pos - 1), 
+           $ [if length (lines source) > sourceLine pos - 1
+                 then lines source !! (sourceLine pos - 1)
+                 else last $ lines source,
               take (sourceColumn pos - 1) (repeat '.') ++ "^",
               showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input"
                                 (errorMessages err)]
@@ -51,20 +54,28 @@ autoInsertSemi :: Parser ()
 autoInsertSemi =
     do st <- getState
        pos <- getPosition
-       setState $ st { stSourcePos = pos }
+       setState $ st { stLTPos = pos }
 
 putBack :: [Char] -> Parser ()
 putBack toks =
     do input <- getInput
        setInput $ toks ++ input
 
--- [No line terminator here]
-withNoLineTerminator :: Parser a -> Parser a
-withNoLineTerminator p =
-    do updateState $ \st -> st { stAllowLT = False }
-       x <- p
-       updateState $ \st -> st { stAllowLT = True }
-       return x
+whiteSpace :: Parser ()
+whiteSpace =
+    do updateState $ \st -> st { stSeenLT = False }
+       skipMany (simpleSpace <|> lineTerminator <|> oneLineComment <|> multiLineComment <?> "")
+       st <- getState
+       when (stSeenLT st)
+            (do pos <- getPosition
+                setState $ st { stLTPos = pos })
+
+noLineTerminatorHere :: Parser ()
+noLineTerminatorHere =
+    do st <- getState
+       pos <- getPosition
+       when (pos == stLTPos st)
+            (fail "No line terminator here")
 -- }}}
 
 -- Lexer {{{
@@ -102,13 +113,6 @@ lexeme :: Parser a -> Parser a
 lexeme p =
     do { x <- p; whiteSpace; return x }
 
-whiteSpace :: Parser ()
-whiteSpace =
-    do st <- getState
-       if stAllowLT st
-          then skipMany (simpleSpace <|> lineTerminator <|> oneLineComment <|> multiLineComment <?> "")
-          else skipMany (simpleSpace <|> oneLineComment <|> multiLineComment <?> "")
-
 simpleSpace :: Parser ()
 simpleSpace =
     skipMany1 (oneOf " \t\v\f\b") -- TODO: Unicode char
@@ -116,7 +120,7 @@ simpleSpace =
 lineTerminator :: Parser ()
 lineTerminator =
     do many1 $ oneOf "\r\n"
-       autoInsertSemi
+       updateState $ \st -> st { stSeenLT = True }
 
 oneLineComment :: Parser ()
 oneLineComment =
@@ -266,6 +270,12 @@ reserved name =
     do{ string name
       ; notFollowedBy (alphaNum <|> oneOf "$_") <?> ("end of " ++ show name)
       }) <?> ""
+
+reservedWithNoLT name =
+   (try $ do string name
+             notFollowedBy (alphaNum <|> oneOf "$_") <?> ("end of " ++ show name)
+             skipMany (simpleSpace <|> oneLineComment <|> multiLineComment <?> ""))
+   <?> ""
 
 identifierString =
    (lexeme $ try $

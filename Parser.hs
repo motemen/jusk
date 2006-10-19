@@ -177,9 +177,8 @@ parenListExpression = liftM List (parens $ (assignmentExpression AllowIn) `sepBy
 postfixExpression :: Parser Expression
 postfixExpression =
     do e <- leftHandSideExpression
-       -- TODO NoLineTerminator
-       e <- option e (do { reservedOp "++"; return $ Operator "_++" [e] }
-                      <|> do { reservedOp "--"; return $ Operator "_--" [e] }) 
+       e <- option e (do { noLineTerminatorHere; reservedOp "++"; return $ Operator "_++" [e] }
+                      <|> do { noLineTerminatorHere; reservedOp "--"; return $ Operator "_--" [e] }) 
        whiteSpace
        return e
 
@@ -321,7 +320,7 @@ semicolon = (semi >> return ())
                     _ | null input -> do setInput ";"
                                          semi 
                                          return ()
-                    _ | pos == stSourcePos st
+                    _ | pos == stLTPos st
                                    -> do setInput (';':input)
                                          semicolon
                     _ | otherwise  -> fail ""
@@ -439,14 +438,14 @@ expressionOpt = (expression AllowIn)
 --- Continue and Break Statements
 continueStatement :: Parser Statement
 continueStatement =
-    do withNoLineTerminator $ reserved "continue"
+    do reservedWithNoLT "continue"
        label <- option Nothing (liftM Just identifierString)
        semicolon
        return $ STContinue label
 
 breakStatement :: Parser Statement
 breakStatement =
-    do withNoLineTerminator $ reserved "break"
+    do reservedWithNoLT "break"
        label <- option Nothing (liftM Just identifierString)
        semicolon
        return $ STBreak label
@@ -454,7 +453,7 @@ breakStatement =
 --- Return Statement
 returnStatement :: Parser Statement
 returnStatement =
-    do withNoLineTerminator $ reserved "return"
+    do reservedWithNoLT "return"
        expr <- option Nothing (liftM Just (try $ expression AllowIn))
        semicolon
        return $ STReturn expr
@@ -508,7 +507,7 @@ defaultCase =
 -- Throw Statement
 throwStatement :: Parser Statement
 throwStatement =
-    do withNoLineTerminator $ reserved "throw"
+    do reservedWithNoLT "throw"
        expr <- expression AllowIn
        semicolon
        return $ STThrow expr
