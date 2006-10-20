@@ -19,6 +19,7 @@ data Flag
     | ParseOnly
     | InputFile String
     | EvalStr String
+    | Version
     deriving (Show, Eq)
 
 class Eval a where

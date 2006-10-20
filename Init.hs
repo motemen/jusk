@@ -37,6 +37,7 @@ setupEnv =
        defineVar "print" (NativeFunction print')
        defineVar "p" (NativeFunction printNative)
        defineVar "__env__" (NativeFunction printEnv)
+       defineVar "__proto__" (NativeFunction getProto)
        defineVar "exit" (NativeFunction exit)
        
        return ()
@@ -70,6 +71,17 @@ setupEnv =
                 do env <- getEnv
                    liftAll $ print $ env { envFrames = tail $ envFrames env }
                    return Undefined
+
+             getProto :: NativeFunction
+             getProto (Object { objPrototype = proto }:_) =
+                 return proto
+
+             getProto (ref@(Ref _):_) =
+                 do obj <- readRef ref
+                    getProto [obj]
+
+             getProto _ =
+                 return Null
 
              exit :: NativeFunction
              exit _ =

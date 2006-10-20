@@ -370,13 +370,16 @@ construct (constructor@Function { }) args =
        return object
 
 construct constructor@(NativeFunction _) args =
-    do prototype <- getProp constructor "prototype"
-       object <- makeRef $ nullObject { objPrototype = prototype }
+    do proto <- getProp constructor "prototype"
+       object <- makeRef $ nullObject { objPrototype = proto }
        callFunction object constructor args
        return object
 
 construct (ref@Ref { }) args =
     readRef ref >>= flip construct args
+
+construct (Object { objValue = value }) args | not $ isNull value =
+    construct value args
 
 construct c _ =
     throw $ TypeError $ show c ++ " is not a constructor"

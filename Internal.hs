@@ -73,9 +73,12 @@ putProp ref@(Ref objRef) p value =
        canPut <- canPut object p
        value <- makeRef value
        when (canPut)
-            (liftAll $ modifyIORef
-                       objRef
-                       (\object@Object { } -> object { objPropMap = Map.insert p (mkProp value []) (objPropMap object) }))
+            (liftAll $ modifyIORef objRef $ insertProp value)
+    where insertProp value object@Object { objPropMap = propMap }
+              = object { objPropMap = Map.insert p (mkProp value []) propMap }
+
+          insertProp value object
+              = nullObject { objPropMap = mkPropMap [(p, value, [])], objValue = object }
 
 putProp object _ _ =
     do throw $ ReferenceError $ "cannot put property to " ++ show object
@@ -245,6 +248,9 @@ getOwnPropAttr (Array _) p =
 getOwnPropAttr (Ref objRef) p =
     do object <- liftAll $ readIORef objRef
        getOwnPropAttr object p
+
+getOwnPropAttr _ _ =
+    return Nothing
 
 maybeNull :: a -> (Value -> a) -> Value -> a
 maybeNull x _ Null = x

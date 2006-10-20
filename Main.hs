@@ -92,10 +92,11 @@ runRepl flags =
 
 options :: [OptDescr Flag]
 options = [
-        Option ['d'] ["debug"] (NoArg Debug)       "debug mode",
-        Option ['w'] ["warn"]  (NoArg Warn)        "turn on warnings",
-        Option ['p'] ["parse"] (NoArg ParseOnly)   "only parse text (do not evaluate)",
-        Option ['e'] []        (ReqArg EvalStr "") "evaluate string"
+        Option ['d'] ["debug"]   (NoArg Debug)       "debug mode",
+        Option ['w'] ["warn"]    (NoArg Warn)        "turn on warnings",
+        Option ['p'] ["parse"]   (NoArg ParseOnly)   "only parse text (do not evaluate)",
+        Option ['e'] []          (ReqArg EvalStr "") "evaluate string",
+        Option ['V'] ["version"] (NoArg Version)     "show version"
     ]
 
 parseOpts :: [String] -> IO ([Flag], [String])
@@ -105,10 +106,15 @@ parseOpts argv =
          (_, _, errs) -> ioError $ userError $ concat errs ++ usageInfo header options
     where header = "Usage: jusk [OPTION...] [file]"
 
+printVersion :: IO ()
+printVersion =
+    putStrLn "jusk $Id $Date"
+
 main :: IO ()
 main =
     do args <- getArgs
        (flags, rest) <- parseOpts args
+       when (Version `elem` flags) printVersion
        maybe (case length rest of
                    0 -> runRepl flags
                    _ -> evalFile flags $ rest !! 0)
