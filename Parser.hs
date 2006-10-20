@@ -53,23 +53,32 @@ numericLiteral =
 --- String Literals
 -- some code from libraries/parsec/Text/ParserCombinators/Parsec/Expression.hs
 stringLiteral :: Parser Expression
-stringLiteral = (do string <- (stringCharacters '"' <|> stringCharacters '\'')
+stringLiteral = (do charOrExprs <- (stringCharacters '"' <|> stringCharacters '\'')
                     whiteSpace
-                    return $ Literal $ String string)
+                    return $ (+++) $ foldr join [] charOrExprs)
             <?> "string"
+    where join (Right c) ((Literal (String cs)):xs) =
+              [Literal $ String $ c:cs] ++ xs
+          join (Right c) xs = 
+              [Literal $ String [c]] ++ xs
+          join (Left e) xs =
+              [e] ++ xs
+          (+++) [x] = x
+          (+++) (x:xs) = Operator "+" [x, (+++) xs]
 
-stringCharacters :: Char -> Parser [Char]
+stringCharacters :: Char -> Parser [Either Expression Char]
 stringCharacters q = between (char q) (char q) (many $ stringChar q)
 
-stringChar :: Char -> Parser Char
+stringChar :: Char -> Parser (Either Expression Char)
 stringChar q = (char '\\' >> escapeSequence)
-           <|> noneOf (q:"\r\n\f")
+           <|> (liftM Right $ noneOf (q:"\r\n\f"))
 
-escapeSequence :: Parser Char
-escapeSequence = characterEscapeSequence
-             <|> (do { char '0'; notFollowedBy $ satisfy isDigit; return '\0' })
-             <|> octEscapeSequence -- Not specified in ECMA-3
-             <|> hexEscapeSequence
+escapeSequence :: Parser (Either Expression Char)
+escapeSequence = liftM Left stringInterpolateSequence
+             <|> liftM Right characterEscapeSequence
+             <|> liftM Right (do { char '0'; notFollowedBy $ satisfy isDigit; return '\0' })
+             <|> liftM Right octEscapeSequence -- Not specified in ECMA-3
+             <|> liftM Right hexEscapeSequence
 --           <|> unicodeEscapeSequence
 
 characterEscapeSequence :: Parser Char
@@ -88,6 +97,13 @@ hexEscapeSequence :: Parser Char
 hexEscapeSequence = do char 'x'
                        digits <- times 2 hexDigit
                        return $ toEnum $ foldr (\b a -> a * 16 + (digitToInt b)) 0 digits
+
+stringInterpolateSequence :: Parser Expression
+stringInterpolateSequence =
+    do char '{'
+       expr <- expression AllowIn
+       char '}'
+       return expr
 -- }}}
 
 -- Expressions {{{
@@ -423,7 +439,6 @@ forStatement =
     do reserved "for"
        symbol "("
        (try $ do init <- forInitializer
-                 semi
                  cond <- expressionOpt
                  semi
                  updt <- expressionOpt
