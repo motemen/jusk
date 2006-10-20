@@ -28,8 +28,9 @@ instance Eval Statement where
               bindVariable (name, Just expr) =
                   eval expr >>= getValue >>= defineVar name
 
-    eval (STFunctionDefinition { funcDefFunc = function@Function { funcName = Just name } }) =
-        defineVar name function
+    eval (STFunctionDefinition { funcDefFunc = func@Function { funcName = Just name } }) =
+        do frames <- liftM envFrames getEnv
+           defineVar name $ func { funcScope = frames }
 
     eval STEmpty =
         return Void
@@ -267,9 +268,13 @@ instance Eval Expression where
            putValue left value
            return value
     
-    eval (Literal num@(Number _))
-        = return $ tidyNumber num
+    eval (Literal num@(Number _)) =
+        return $ tidyNumber num
     
+    eval (Literal func@(Function { })) =
+        do frames <- liftM envFrames getEnv
+           return $ func { funcScope = frames }
+
     eval (Literal value) =
         return value
     
@@ -310,7 +315,7 @@ evalOperator _ _ =
 
 -- [[Call]]
 callFunction :: Value -> Value -> [Value] -> Evaluate Value
-callFunction this (callee@Function { funcParam = param, funcBody = body }) args =
+callFunction this (callee@Function { funcParam = param, funcBody = body, funcScope = scope }) args =
     do let arguments
                = nullObject {
                      objPropMap = mkPropMap
@@ -319,11 +324,12 @@ callFunction this (callee@Function { funcParam = param, funcBody = body }) args 
                                      ("length", toValue $ length args, [DontEnum])],
                      objPrototype = Object.prototypeObject
                  }
-       binding <- bindParamArgs ("arguments":param) ([arguments] ++ args ++ repeat Undefined)
-       pushFrame this binding
-       value <- withCC CReturn (eval body)
-       popFrame
-       return value
+       binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
+       withScope scope
+                 $ do pushFrame this binding
+                      value <- withCC CReturn (eval body)
+                      popFrame
+                      return value
     where argProps = zip3 (map show [0..]) (args) (repeat [DontEnum])
 
 callFunction this (NativeFunction nativeFunc) args =

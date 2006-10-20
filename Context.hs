@@ -16,11 +16,11 @@ getEnv = get
 -- Frame
 pushFrame :: Value -> Binding -> Evaluate ()
 pushFrame this binding =
-    modify (\env@Env { envFrames = frames } -> env { envFrames = (Activation binding this):frames })
+    modify $ \env@Env { envFrames = frames } -> env { envFrames = [Activation binding this] ++ frames }
 
 pushWithFrame :: Value -> Evaluate ()
 pushWithFrame object =
-    modify (\env@Env { envFrames = frames } -> env { envFrames = (WithFrame object):frames })
+    modify $ \env@Env { envFrames = frames } -> env { envFrames = [WithFrame object] ++ frames }
 
 pushNullFrame :: Value -> Evaluate ()
 pushNullFrame this =
@@ -29,7 +29,7 @@ pushNullFrame this =
 
 popFrame :: Evaluate ()
 popFrame =
-    modify (\env@Env { envFrames = frames } -> env { envFrames = tail frames })
+    modify $ \env@Env { envFrames = frames } -> env { envFrames = tail frames }
 
 pushScope :: Binding -> Evaluate ()
 pushScope binding =
@@ -43,6 +43,14 @@ pushNullScope =
 
 popScope :: Evaluate ()
 popScope = popFrame
+
+withScope :: [Frame] -> Evaluate a -> Evaluate a
+withScope frames thunk =
+    do prevFrames <- liftM envFrames getEnv
+       modify $ \env -> env { envFrames = frames }
+       value <- thunk
+       modify $ \env -> env { envFrames = prevFrames }
+       return value
 
 currentFrame :: Evaluate Frame
 currentFrame = liftM (head . envFrames) getEnv

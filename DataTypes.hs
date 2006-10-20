@@ -41,7 +41,7 @@ data Frame
     = GlobalFrame { frObject :: Value, frThis :: Value }
     | Activation { frObject :: Value, frThis :: Value }
     | WithFrame { frObject :: Value }
-    deriving Show
+    deriving (Show, Eq)
 
 type Binding
     = Value 
@@ -98,8 +98,8 @@ data Value
     | Function {
         funcName :: Maybe String,
         funcParam :: Parameters,
-        funcBody :: Statement
---      funcScope :: [Frame]
+        funcBody :: Statement,
+        funcScope :: [Frame]    -- [[Scope]]
       }
     | Object {
         objPropMap :: Map String PropertyPair,
@@ -140,8 +140,18 @@ instance Show Value where
     show (Function { funcName = name, funcParam = params, funcBody = body }) =
         "<Function " ++ maybe "" (++ " ") name ++ show params ++ " " ++ show body ++ ">"
 
-    show (Object { objPropMap = propMap, objPrototype = prototype, objClass = klass, objValue = value, objConstruct = construct, objName = name }) =
-        "<Object" ++ (if null name then "" else " " ++ show name) ++ " {" ++ showMap propMap ++ "} #prototype:" ++ showShallow prototype ++ " #class:" ++ show klass ++ " #value:" ++ show value ++ " #construct:" ++ showShallow construct ++ ">"
+    show (Object { objPropMap = propMap,
+                   objPrototype = prototype,
+                   objClass = klass,
+                   objValue = value,
+                   objConstruct = construct,
+                   objName = name }) =
+        "<Object" ++ (if null name then "" else " " ++ show name) ++
+            " {" ++ showMap propMap ++ "}" ++
+            " #prototype=" ++ showShallow prototype ++
+            " #class=" ++ show klass ++
+            " #value=" ++ show value ++
+            " #construct=" ++ showShallow construct ++ ">"
         where showMap mapData =
                   concat $ ", " `intersperse` map showPair (assocs mapData)
               showPair (k, v) =

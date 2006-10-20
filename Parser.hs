@@ -558,13 +558,13 @@ functionExpression =
     do reserved "function"
        name <- option Nothing (liftM Just identifierString)
        Function { funcParam = params, funcBody = body } <- functionCommon
-       return $ Literal $ Function name params body
+       return $ Literal $ Function name params body undefined
 
 functionCommon :: Parser Value
 functionCommon =
     do params <- parens formalParameterListOpt
        body <- block
-       return $ Function Nothing params body
+       return $ Function Nothing params body undefined
 
 formalParameterListOpt :: Parser Parameters
 formalParameterListOpt = identifierString `sepBy` comma

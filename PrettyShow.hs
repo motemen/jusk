@@ -90,8 +90,14 @@ instance PrettyShow Expression where
     prettyShow (List exprs) = map prettyShow exprs `joinBy` ","
 
     prettyShow (Operator "()" (callee:args)) = prettyShow callee ++ "(" ++ map prettyShow args `joinBy` "," ++ ")"
-    prettyShow (Operator "[]" [obj, p])      = prettyShow obj ++ "[" ++ prettyShow p ++ "]"
+
+    prettyShow (Operator "[]" [obj, Literal (String p)]) =
+        prettyShow obj ++ "." ++ p
+    prettyShow (Operator "[]" [obj, p]) =
+        prettyShow obj ++ "[" ++ prettyShow p ++ "]"
+
     prettyShow (Operator "?:" [x, y, z])     = prettyShow x ++ " ? " ++ prettyShow y ++ " : " ++ prettyShow z
+
     prettyShow (Operator "new" (c:args))     = "new " ++ prettyShow c ++ "(" ++ map prettyShow args `joinBy` "," ++ ")"
     prettyShow (Operator op [x, y])          = prettyShow x ++ " " ++ op ++ " " ++ prettyShow y
     prettyShow (Operator ('_':op) [x])       = prettyShow x ++ op

@@ -97,6 +97,24 @@ hasProperty object@(Object { objPropMap = props }) p =
           (const $ lift $ return True)
           (Map.lookup p props)
 
+hasProperty ref@(Ref { }) p =
+    flip hasProperty p =<< readRef ref
+
+hasProperty o p =
+    do throw $ NotImplemented $ "hasProperty: " ++ show o ++ " " ++ show p
+       return False
+
+hasOwnProperty :: Value -> String -> Evaluate Bool
+hasOwnProperty (Object { objPropMap = props }) p =
+    return $ Map.member p props
+
+hasOwnProperty ref@(Ref { }) p =
+    flip hasOwnProperty p =<< readRef ref
+
+hasOwnProperty o p =
+    do throw $ NotImplemented $ "hasOwnProperty: " ++ show o ++ " " ++ show p
+       return False
+
 -- Reference の解決
 getValue :: Value -> Evaluate Value
 getValue (Reference baseRef name) =
@@ -108,14 +126,17 @@ getValue (Reference baseRef name) =
 getValue value =
     return value
 
-putValue :: Value -> Value -> Evaluate Value
+putValue :: Value -> Value -> Evaluate ()
 putValue (Reference baseRef name) value =
     do baseRef <- getValue baseRef
        putProp baseRef name value
-       return value
+
+putValue (Ref ref) value =
+    liftAll $ writeIORef ref value
 
 putValue _ _ =
-    throw $ ReferenceError "invalid assignment left-hand side"
+    do throw $ ReferenceError "invalid assignment left-hand side"
+       return ()
 
 getVar :: String -> Evaluate Value
 getVar name =
@@ -124,14 +145,14 @@ getVar name =
 
 setVar :: String -> Value -> Evaluate Value
 setVar name value =
-    do env <- getEnv
-       setFrameVar (envFrames env) name value
+    do var <- getVar name
+       var <~ value
+       return value
 
 isBound :: String -> Evaluate Bool
 isBound name =
-    do frame <- currentFrame
-       object <- readRef $ frObject frame
-       hasProperty object name
+    do env <- getEnv
+       isFrameVarBound (envFrames env) name
 
 defineVar :: String -> Value -> Evaluate Value
 defineVar name value =
@@ -141,13 +162,10 @@ defineVar name value =
                                 defineVar name value
                                 modify (\env@Env { envFrames = frames } -> env { envFrames = frame:frames })
                                 return value
-            _ -> do defined <- isBound name
-                    if defined 
-                       then setVar name value >> return value
-                       else do frameObject <- liftM frObject currentFrame
-                               valueRef <- makeRef value
-                               frameObject ! name <~ valueRef
-                               return value
+            _ -> do value <- makeRef value
+                    frameObject <- liftM frObject currentFrame
+                    frameObject ! name <~ value
+                    return value
 
 getFrameVar :: [Frame] -> String -> Evaluate Value
 getFrameVar [] name =
@@ -158,10 +176,15 @@ getFrameVar (f:fs) name =
        >>= maybe (getFrameVar fs name)
                  (return)
 
-setFrameVar :: [Frame] -> String -> Value -> Evaluate Value
-setFrameVar (f:_) name value =
-    do frObject f ! name <~ value
-       return value
+isFrameVarBound :: [Frame] -> String -> Evaluate Bool
+isFrameVarBound [] _ =
+    return False
+
+isFrameVarBound (f:fs) name =
+    do bound <- hasOwnProperty (frObject f) name
+       if bound
+          then return True
+          else isFrameVarBound fs name
 
 warn :: String -> Evaluate ()
 warn message =
@@ -235,5 +258,5 @@ prototypeOfVar varName =
 (!) :: Value -> String -> Value
 (!) = Reference
 
-(<~) :: Value -> Value -> Evaluate Value
+(<~) :: Value -> Value -> Evaluate ()
 (<~) = putValue
