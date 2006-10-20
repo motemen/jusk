@@ -53,29 +53,41 @@ numericLiteral =
 --- String Literals
 -- some code from libraries/parsec/Text/ParserCombinators/Parsec/Expression.hs
 stringLiteral :: Parser Expression
-stringLiteral = liftM (Literal . String)
-                      (do str <- (stringLiteralQuotedBy '"' <|> stringLiteralQuotedBy '\'')
-                          whiteSpace
-                          return $ foldr (maybe id (:)) "" str)
+stringLiteral = (do string <- (stringCharacters '"' <|> stringCharacters '\'')
+                    whiteSpace
+                    return $ Literal $ String string)
             <?> "string"
-              where
-                stringLiteralQuotedBy q = (between (char q) (char q) (many $ stringChar q))
 
-stringChar q = (char '\\' >> (controlEscape <|> zeroEscape <|> hexEscape <|> identityEscape))
-           <|> (liftM Just $ satisfy (\c -> c /= q))
+stringCharacters :: Char -> Parser [Char]
+stringCharacters q = between (char q) (char q) (many $ stringChar q)
 
-identityEscape = satisfy (\c -> c /= '_') >>= return . Just
-controlEscape  = liftM Just $ choice (map escaped $ zip "bfnrtv" "\b\f\n\r\t\v") -- TODO
-               where
-                 escaped (c, code) = do { char c; return code }
+stringChar :: Char -> Parser Char
+stringChar q = (char '\\' >> escapeSequence)
+           <|> noneOf (q:"\r\n\f")
 
-zeroEscape     = do { char '0'; notFollowedBy (satisfy isDigit); return '0' } >> return Nothing
-hexEscape      = do char 'x'
-                    digits <- times 2 hexDigit
-                    return $ Just $ toEnum $ foldr (\b a -> a * 16 + (digitToInt b)) 0 digits
---           <|> char 'u' >> times 4 hexDigit
---           <|> char 'U' >> times 8 hexDigit
+escapeSequence :: Parser Char
+escapeSequence = characterEscapeSequence
+             <|> (do { char '0'; notFollowedBy $ satisfy isDigit; return '\0' })
+             <|> octEscapeSequence -- Not specified in ECMA-3
+             <|> hexEscapeSequence
+--           <|> unicodeEscapeSequence
 
+characterEscapeSequence :: Parser Char
+characterEscapeSequence = singleEscapeCharacter
+                      <|> noneOf "xu0123456789\r\n\f"
+
+singleEscapeCharacter :: Parser Char
+singleEscapeCharacter = choice $ zipWith escaped "'\"\\bfnrtv" "'\"\\\b\f\n\r\t\v"
+                      where escaped c code = do { char c; return code }
+
+octEscapeSequence :: Parser Char
+octEscapeSequence = do digits <- try (times 3 digit) <|> try (times 2 digit) <|> times 1 digit
+                       return $ toEnum $ foldr (\b a -> a * 8 + (digitToInt b)) 0 digits
+
+hexEscapeSequence :: Parser Char
+hexEscapeSequence = do char 'x'
+                       digits <- times 2 hexDigit
+                       return $ toEnum $ foldr (\b a -> a * 16 + (digitToInt b)) 0 digits
 -- }}}
 
 -- Expressions {{{
