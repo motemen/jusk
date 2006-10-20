@@ -24,7 +24,9 @@ nullEnv flags =
 
 setupEnv :: Evaluate ()
 setupEnv =
-    do defineConstructor "Object"   Object.prototypeObject   Object.function   Object.constructor
+    do pushCont (\e -> liftAll $ print e >> return e) CThrow
+
+       defineConstructor "Object"   Object.prototypeObject   Object.function   Object.constructor
        defineConstructor "Array"    Array.prototypeObject    Array.function    Array.constructor
        defineConstructor "String"   String.prototypeObject   String.function   String.constructor
        defineConstructor "Function" Function.prototypeObject Function.function Function.constructor
@@ -34,45 +36,43 @@ setupEnv =
 
        defineVar "undefined" Undefined
 
-       defineVar "print" (NativeFunction print')
-       defineVar "p" (NativeFunction printNative)
-       defineVar "__env__" (NativeFunction printEnv)
-       defineVar "__proto__" (NativeFunction getProto)
-       defineVar "exit" (NativeFunction exit)
+       defineVar "print"     (nativeFunc "print"     1 print')
+       defineVar "p"         (nativeFunc "p"         1 printNative)
+       defineVar "__env__"   (nativeFunc "__env__"   0 printEnv)
+       defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
+       defineVar "exit"      (nativeFunc "exit"      0 exit)
        
+       popCont
+
        return ()
 
        where defineConstructor name prototypeObject function construct =
                  do proto <- makeRef prototypeObject
-                    constructor <- makeRef nullObject {
-                        objPropMap   = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])],
-                        objPrototype = Function.prototypeObject,
-                        objValue     = NativeFunction function,
-                        objConstruct = NativeFunction construct,
-                        objName      = name
+                    constructor <- makeRef nullNativeFunc {
+                        funcName      = name,
+                        funcArity     = 1,
+                        funcNatCode   = function,
+                        funcConstruct = Just construct,
+                        objPropMap    = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])]
                     }
                     constructor ! "prototype" ! "constructor" <~ constructor
                     defineVar name constructor
 
-             print' :: NativeFunction
              print' [] = print' [Undefined]
              print' (x:_) =
                  do string <- toString x
                     liftAll $ putStrLn string
                     return Undefined
 
-             printNative :: NativeFunction
              printNative (x:_) =
                  do liftAll $ print x
                     return Undefined
 
-             printEnv :: NativeFunction
              printEnv _ =
                 do env <- getEnv
                    liftAll $ print $ env { envFrames = tail $ envFrames env }
                    return Undefined
 
-             getProto :: NativeFunction
              getProto (Object { objPrototype = proto }:_) =
                  return proto
 
@@ -83,6 +83,5 @@ setupEnv =
              getProto _ =
                  return Null
 
-             exit :: NativeFunction
              exit _ =
                 throw SysExit

@@ -28,7 +28,7 @@ instance Eval Statement where
               bindVariable (name, Just expr) =
                   eval expr >>= getValue >>= defineVar name
 
-    eval (STFunctionDefinition { funcDefFunc = func@Function { funcName = Just name } }) =
+    eval (STFunctionDefinition { funcDefFunc = func@Function { funcName = name } }) =
         do frames <- liftM envFrames getEnv
            defineVar name $ func { funcScope = frames }
 
@@ -332,9 +332,9 @@ callFunction this (callee@Function { funcParam = param, funcBody = body, funcSco
                       return value
     where argProps = zip3 (map show [0..]) (args) (repeat [DontEnum])
 
-callFunction this (NativeFunction nativeFunc) args =
+callFunction this (NativeFunction { funcArity = arity, funcNatCode = nativeFunc }) args =
     do pushNullFrame this
-       value <- nativeFunc args
+       value <- nativeFunc $ args ++ (take (arity - length args) $ repeat Undefined)
        popFrame
        return value
 
@@ -355,24 +355,24 @@ callMethod object name args =
 
 -- [[Construct]]
 construct :: Value -> [Value] -> Evaluate Value
-construct (constructorObj@Object { objConstruct = NativeFunction constructor }) args = 
-    do proto <- getProp constructorObj "prototype"
+construct (func@Function { }) args = 
+    do proto <- getProp func "prototype"
+       object <- makeRef $ nullObject { objPrototype = proto }
+       callFunction object func args
+       return object
+
+construct func@(NativeFunction { funcConstruct = Just constructor }) args =
+    do proto <- getProp func "prototype"
        object <- makeRef =<< constructor args
-       liftAll $ modifyIORef (getRef object) $ setPrototype proto
+       liftAll $ modifyIORef (getRef object) $ setProto proto
        return object
-    where setPrototype proto object@(Object { }) = object { objPrototype = proto }
-          setPrototype _ x = x
+    where setProto proto object@(Object { }) = object { objPrototype = proto }
+          setProto _ x = x
 
-construct (constructor@Function { }) args = 
-    do proto <- getProp constructor "prototype"
+construct func@(NativeFunction { }) args =
+    do proto <- getProp func "prototype"
        object <- makeRef $ nullObject { objPrototype = proto }
-       callFunction object constructor args
-       return object
-
-construct constructor@(NativeFunction _) args =
-    do proto <- getProp constructor "prototype"
-       object <- makeRef $ nullObject { objPrototype = proto }
-       callFunction object constructor args
+       callFunction object func args
        return object
 
 construct (ref@Ref { }) args =

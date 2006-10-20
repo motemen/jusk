@@ -128,8 +128,8 @@ toString (Number (Integer n)) = return $ show n
 toString (Number (Double n))  = return $ show n
 toString (Number NaN)         = return "NaN"
 
-toString (NativeFunction _) =
-    return "[native function]"
+toString (NativeFunction { funcName = name }) =
+    return $ "function " ++ name ++ "() { [native code] }"
 
 toString ref@(Reference { }) =
     do object <- getValue ref

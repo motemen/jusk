@@ -121,5 +121,5 @@ instance PrettyShow Value where
     prettyShow (String string) = show string
 
     prettyShow (Function { funcName = name, funcParam = params, funcBody = body }) =
-        "function" ++ maybe "" (" " ++) name ++ "(" ++ params `joinBy` "," ++ ") " ++ prettyShow body
+        "function" ++ (if null name then "" else " " ++ name) ++ "(" ++ params `joinBy` "," ++ ") " ++ prettyShow body
 

@@ -439,13 +439,15 @@ forStatement =
     do reserved "for"
        symbol "("
        (try $ do init <- forInitializer
+                 semi
                  cond <- expressionOpt
                  semi
                  updt <- expressionOpt
                  symbol ")"
                  block <- statement
                  return $ STFor init cond updt block)
-           <|> (do binding <- variableStatement NoIn -- TODO: leftHandSideExpression
+           <|> (do binding <- (do reserved "var" -- TODO: leftHandSideExpression
+                                  liftM STVariableDefinition $ variableDeclarationList NoIn)
                    reserved "in"
                    object <- expression AllowIn
                    symbol ")"
@@ -455,7 +457,9 @@ forStatement =
 forInitializer :: Parser Statement
 forInitializer =
     option STEmpty
-           (variableStatement NoIn <|> (liftM STExpression $ expression NoIn))
+           ((do reserved "var"
+                liftM STVariableDefinition $ variableDeclarationList NoIn)
+            <|> (liftM STExpression $ expression NoIn))
 
 expressionOpt :: Parser Expression
 expressionOpt = (expression AllowIn)
@@ -578,21 +582,21 @@ functionDeclaration =
     do reserved "function"
        name <- identifierString
        function <- functionCommon
-       return $ STFunctionDefinition { funcDefFunc = function { funcName = Just name } }
+       return $ STFunctionDefinition { funcDefFunc = function { funcName = name } }
     <?> "function declaration"
 
 functionExpression :: Parser Expression
 functionExpression =
     do reserved "function"
-       name <- option Nothing (liftM Just identifierString)
+       name <- option "" identifierString
        Function { funcParam = params, funcBody = body } <- functionCommon
-       return $ Literal $ Function name params body undefined
+       return $ Literal $ nullFunction { funcName = name, funcParam = params, funcBody = body }
 
 functionCommon :: Parser Value
 functionCommon =
     do params <- parens formalParameterListOpt
        body <- block
-       return $ Function Nothing params body undefined
+       return $ nullFunction { funcParam = params, funcBody = body }
 
 formalParameterListOpt :: Parser Parameters
 formalParameterListOpt = identifierString `sepBy` comma

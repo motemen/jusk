@@ -56,7 +56,7 @@ data Frame
 
 instance Show Frame where
     show (GlobalFrame { frObject = object, frThis = this }) =
-        "<GlobalFrame>"
+        "<GlobalFrame " ++ show object ++ " this=" ++ show this ++ ">"
     show (Activation { frObject = object, frThis = this }) =
         "<Activation " ++ show object ++ " this=" ++ show this ++ ">"
     show (WithFrame { frObject = object }) =
@@ -118,10 +118,12 @@ data Value
     | String String
     | Array [Value]
     | Function {
-        funcName :: Maybe String,
+        funcName  :: String,
         funcParam :: Parameters,
-        funcBody :: Statement,
-        funcScope :: [Frame]    -- [[Scope]]
+        funcBody  :: Statement,
+        funcScope :: [Frame],                  -- [[Scope]]
+        funcConstruct :: Maybe NativeFunction, -- [[Construct]]
+        objPropMap :: Map String PropertyPair
       }
     | Object {
         objPropMap :: Map String PropertyPair,
@@ -130,7 +132,6 @@ data Value
         objPrototype :: Value,  -- [[Prototype]]
         objClass     :: String, -- [[Class]]
         objValue     :: Value,  -- [[Value]]
-        objConstruct :: Value,  -- [[Construct]]
         objName      :: String
       }
     | Exception { exceptionBody :: Exception }
@@ -138,7 +139,13 @@ data Value
 {-
     内部でのみ使用
 -}
-    | NativeFunction NativeFunction
+    | NativeFunction {
+        funcName      :: String,
+        funcArity     :: Int,
+        funcNatCode   :: NativeFunction,
+        funcConstruct :: Maybe NativeFunction,
+        objPropMap :: Map String PropertyPair
+      }
     | Reference { refBase :: Value, refName :: String }
     | Ref { getRef :: IORef Value }
     | Void
@@ -159,21 +166,24 @@ instance Show Value where
 
     show (Array array) = "[" ++ concat ("," `intersperse` map show array) ++ "]"
 
-    show (Function { funcName = name, funcParam = params, funcBody = body }) =
-        "<Function " ++ maybe "" (++ " ") name ++ show params ++ " " ++ show body ++ ">"
+    show (Function { objPropMap = propMap, funcName = name, funcParam = params, funcBody = body }) =
+        "<Function " ++ (if null name then "" else name ++ " ") ++ show params ++ " " ++ show body ++
+            " {" ++ showMap propMap ++ "}>"
+        where showMap mapData =
+                  concat $ ", " `intersperse` map showPair (assocs mapData)
+              showPair (k, v) =
+                  k ++ ": " ++ show v
 
     show (Object { objPropMap = propMap,
                    objPrototype = prototype,
                    objClass = klass,
                    objValue = value,
-                   objConstruct = construct,
                    objName = name }) =
         "<Object" ++ (if null name then "" else " " ++ show name) ++
             " {" ++ showMap propMap ++ "}" ++
             " #prototype=" ++ showShallow prototype ++
             " #class=" ++ show klass ++
-            " #value=" ++ show value ++
-            " #construct=" ++ showShallow construct ++ ">"
+            " #value=" ++ show value ++ ">"
         where showMap mapData =
                   concat $ ", " `intersperse` map showPair (assocs mapData)
               showPair (k, v) =
@@ -181,7 +191,7 @@ instance Show Value where
 
     show (Exception e) = show e
 
-    show (NativeFunction _) = "<NativeFunction>"
+    show (NativeFunction { funcName = name }) = "<NativeFunction " ++ name ++ ">"
 
     show (Reference baseRef p) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
 
@@ -251,6 +261,7 @@ data Exception
     内部でのみ使用
 -}
     | NotImplemented String
+    | InternalError String
     | SysExit
     deriving Eq
 
@@ -306,9 +317,42 @@ nullObject = Object {
         objValue      = Null,
         objPrototype  = Null,
         objClass      = "Object",
-        objConstruct  = Null,
         objName       = ""
     }
+
+nullFunction :: Value
+nullFunction = Function {
+        funcName      = "",
+        funcParam     = [],
+        funcBody      = STEmpty,
+        funcScope     = [],
+        funcConstruct = Nothing,
+        objPropMap    = Map.empty
+    }
+
+nullNativeFunc :: Value
+nullNativeFunc = NativeFunction {
+        funcName      = "",
+        funcArity     = 0,
+        funcNatCode   = undefined,
+        funcConstruct = Nothing,
+        objPropMap    = Map.empty
+    }
+
+nativeFunc :: String -> Int -> NativeFunction -> Value
+nativeFunc name arity code =
+    nullNativeFunc {
+        funcName    = name,
+        funcArity   = arity,
+        funcNatCode = code
+    }
+
+-- 組み込みオブジェクトを作るヘルパー
+nativeFuncPropMap :: [(String, NativeFunction, Int)] -> Map String PropertyPair
+nativeFuncPropMap =
+    mkPropMap . map convert
+    where convert (name, code, arity) =
+              (name, nativeFunc name arity code, [])
 
 isUndefined :: Value -> Bool
 isUndefined Undefined = True
@@ -351,7 +395,7 @@ isVoid Void = True
 isVoid _ = False
 
 isNativeFunction :: Value -> Bool
-isNativeFunction (NativeFunction _) = True
+isNativeFunction (NativeFunction { }) = True
 isNativeFunction _ = False
 
 isReference :: Value -> Bool

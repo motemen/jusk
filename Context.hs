@@ -53,7 +53,11 @@ withScope frames thunk =
        return value
 
 currentFrame :: Evaluate Frame
-currentFrame = liftM (head . envFrames) getEnv
+currentFrame =
+    do frames <- liftM envFrames getEnv
+       case frames of
+            [] -> error "frame is empty"
+            (f:_) -> return f
 
 -- Continuation
 pushCont :: (Value -> Evaluate Value) -> ContType -> Evaluate ()
@@ -64,8 +68,10 @@ popCont :: Evaluate Cont
 popCont =
     do env <- getEnv
        let cs = envContStack env
-       put $ env { envContStack = tail cs }
-       return $ head cs
+       case cs of
+            [] -> do error "contstack is empty"
+            (c:cs) -> do put $ env { envContStack = cs }
+                         return c
 
 withCC :: ContType -> Evaluate Value -> Evaluate Value
 withCC ct proc =

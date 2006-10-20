@@ -17,10 +17,10 @@ import JSType
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = mkPropMap [("toString",   NativeFunction toStringMethod, []),
-                                ("valueOf",    NativeFunction valueOfMethod, []),
-                                ("charAt",     NativeFunction charAt, []),
-                                ("charCodeAt", NativeFunction charCodeAt, [])]
+        objPropMap = nativeFuncPropMap [("toString",   toStringMethod, 0),
+                                        ("valueOf",    valueOfMethod, 0),
+                                        ("charAt",     charAt, 1),
+                                        ("charCodeAt", charCodeAt, 1)]
     }
 
 -- String()

@@ -16,8 +16,8 @@ import JSType
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = mkPropMap [("constructor", NativeFunction constructor, []),
-                                ("toString", NativeFunction toStringMethod, [])]
+        objPropMap = nativeFuncPropMap [("constructor", constructor, 1),
+                                        ("toString",    toStringMethod, 0)]
     }
 
 toStringMethod :: NativeFunction
@@ -26,7 +26,7 @@ toStringMethod _ =
        showFunc this
     where showFunc func@Function { } =
               return $ toValue $ prettyShow func
-          showFunc func@(NativeFunction _) =
+          showFunc func@(NativeFunction { }) =
               liftM toValue $ toString func
           showFunc (Object { objValue = func }) =
               showFunc func
