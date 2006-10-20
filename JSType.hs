@@ -146,8 +146,8 @@ toString object =
     do s <- callMethod object "toString" []
        case s of
             String s -> return s
-            Object { } -> let String x = objValue s
-                              in return x
+            Object { objValue = value } -> toString value
+            _ -> toString s
 
 toObject :: Value -> Evaluate Value
 toObject Undefined =

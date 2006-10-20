@@ -16,6 +16,8 @@ import qualified JSString as String
 import qualified JSFunction as Function
 import Internal
 import Eval
+import Parser
+import ParserUtil
 
 nullEnv :: [Flag] -> IO Env
 nullEnv flags =
@@ -36,18 +38,17 @@ setupEnv =
 
        defineVar "undefined" Undefined
 
-       defineVar "print"     (nativeFunc "print"     1 print')
-       defineVar "p"         (nativeFunc "p"         1 printNative)
-       defineVar "__env__"   (nativeFunc "__env__"   0 printEnv)
-       defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
-       defineVar "exit"      (nativeFunc "exit"      0 exit)
-       
+       defineBuiltInFuncs
+
        popCont
 
        return ()
 
        where defineConstructor name prototypeObject function construct =
-                 do proto <- makeRef prototypeObject
+                 do proto <- makeRef =<< if name == "Object"
+                                            then return prototypeObject
+                                            else do objectProto <- prototypeOfVar "Object"
+                                                    return $ prototypeObject { objPrototype = objectProto }
                     constructor <- makeRef nullNativeFunc {
                         funcName      = name,
                         funcArity     = 1,
@@ -58,30 +59,49 @@ setupEnv =
                     constructor ! "prototype" ! "constructor" <~ constructor
                     defineVar name constructor
 
-             print' [] = print' [Undefined]
-             print' (x:_) =
-                 do string <- toString x
-                    liftAll $ putStrLn string
-                    return Undefined
+defineBuiltInFuncs =
+    do defineVar "load"      (nativeFunc "load"      1 load)
+       defineVar "print"     (nativeFunc "print"     1 printLn)
+       defineVar "p"         (nativeFunc "p"         1 printNative)
+       defineVar "__env__"   (nativeFunc "__env__"   0 env)
+       defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
+       defineVar "exit"      (nativeFunc "exit"      0 exit)
+       
+load args =
+    liftM last $ mapM loadFile args
+    where loadFile file =
+              do file <- toString file
+                 content <- liftAll $ readFile file
+                 case runLex program content of
+                      Left err -> throw $ SyntaxError $ showError content err
+                      Right program -> liftM last $ mapM eval program
 
-             printNative (x:_) =
-                 do liftAll $ print x
-                    return Undefined
+printLn (x:_) =
+    do string <- toString x
+       liftAll $ putStrLn string
+       return Undefined
 
-             printEnv _ =
-                do env <- getEnv
-                   liftAll $ print $ env { envFrames = tail $ envFrames env }
-                   return Undefined
+printNative (x:_) =
+    do liftAll $ print x
+       return Undefined
 
-             getProto (Object { objPrototype = proto }:_) =
-                 return proto
+env _ =
+    do env <- getEnv
+       proto <- prototypeOfVar "Object"
+       object <- makeRef $ nullObject { objPrototype = proto }
+       (object ! "frames" <~) =<< (makeRef $ Array $ map frObject $ tail $ envFrames env)
+       (object ! "stack" <~) =<< (makeRef $ Array $ map (String . show) $ tail $ envContStack env)
+       return object
 
-             getProto (ref@(Ref _):_) =
-                 do obj <- readRef ref
-                    getProto [obj]
+getProto (Object { objPrototype = proto }:_) =
+    return proto
 
-             getProto _ =
-                 return Null
+getProto (ref@(Ref _):_) =
+    do obj <- readRef ref
+       getProto [obj]
 
-             exit _ =
-                throw SysExit
+getProto _ =
+    return Null
+
+exit _ =
+   throw SysExit

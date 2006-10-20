@@ -236,7 +236,8 @@ instance Eval Expression where
         do constructor <- getVar "Array"
            array <- makeRef =<< construct constructor []
            items <- mapM evalValue exprs
-           callMethod array "push" items
+           unless (null items)
+                  (callMethod array "push" items >> return ())
            return array
     
     eval (ObjectLiteral pairs) =
@@ -332,9 +333,9 @@ callFunction this (callee@Function { funcParam = param, funcBody = body, funcSco
                       return value
     where argProps = zip3 (map show [0..]) (args) (repeat [DontEnum])
 
-callFunction this (NativeFunction { funcArity = arity, funcNatCode = nativeFunc }) args =
+callFunction this (NativeFunction { funcNatCode = nativeFunc }) args =
     do pushNullFrame this
-       value <- nativeFunc $ args ++ (take (arity - length args) $ repeat Undefined)
+       value <- nativeFunc args
        popFrame
        return value
 
@@ -396,6 +397,7 @@ defaultValue object hint =
               do method <- getProp object name
                  case method of
                       Null -> return Nothing
+                      Undefined -> return Nothing
                       _ -> do result <- callFunction object method []
                               if isPrimitive result
                                  then return $ Just result

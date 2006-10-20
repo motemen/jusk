@@ -47,7 +47,6 @@ instance Show Env where
         (indent $ unwords $ map show flags)
         where indent s = "    " ++ s
 
-
 data Frame
     = GlobalFrame { frObject :: Value, frThis :: Value }
     | Activation { frObject :: Value, frThis :: Value }
@@ -61,9 +60,6 @@ instance Show Frame where
         "<Activation " ++ show object ++ " this=" ++ show this ++ ">"
     show (WithFrame { frObject = object }) =
         "<WithFrame " ++ show object ++ ">"
-
-type Binding
-    = Value 
 
 data Cont
     = Cont { contType :: ContType, contRecv :: Value -> Evaluate Value }
@@ -144,7 +140,7 @@ data Value
         funcArity     :: Int,
         funcNatCode   :: NativeFunction,
         funcConstruct :: Maybe NativeFunction,
-        objPropMap :: Map String PropertyPair
+        objPropMap    :: Map String PropertyPair
       }
     | Reference { refBase :: Value, refName :: String }
     | Ref { getRef :: IORef Value }
@@ -257,6 +253,7 @@ type RestParameter =
 data Exception
     = ReferenceError String
     | TypeError String
+    | SyntaxError String
 {-
     内部でのみ使用
 -}

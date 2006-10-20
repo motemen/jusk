@@ -14,7 +14,7 @@ getEnv :: Evaluate Env
 getEnv = get
 
 -- Frame
-pushFrame :: Value -> Binding -> Evaluate ()
+pushFrame :: Value -> Value -> Evaluate ()
 pushFrame this binding =
     modify $ \env@Env { envFrames = frames } -> env { envFrames = [Activation binding this] ++ frames }
 
@@ -31,7 +31,7 @@ popFrame :: Evaluate ()
 popFrame =
     modify $ \env@Env { envFrames = frames } -> env { envFrames = tail frames }
 
-pushScope :: Binding -> Evaluate ()
+pushScope :: Value -> Evaluate ()
 pushScope binding =
     do this <- getThis
        pushFrame this binding
@@ -100,7 +100,7 @@ getThis = do env <- getEnv
                 getThis' (f:_)
                     = frThis f
 
-bindParamArgs :: [Parameter] -> [Value] -> Evaluate Binding
+bindParamArgs :: [Parameter] -> [Value] -> Evaluate Value
 bindParamArgs params args =
     do binding <- mapM zipArg $ zip params args
        return $ nullObject { objPropMap = mkPropMap binding, objClass = "Activation" }

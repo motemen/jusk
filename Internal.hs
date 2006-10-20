@@ -12,7 +12,8 @@ module Internal (
         getVar, setVar,
         isBound,
         defineVar,
-        warn,
+        prototypeOfVar,
+        warn, debug,
         (!), (<~)
     ) where
 import qualified Data.Map as Map
@@ -67,7 +68,8 @@ getProp (object@Object { objValue = value }) p | not $ isNull value =
               (lift . return)
 
 getProp object p =
-    getOwnProp object p
+    (debug $ "getProp: " ++ show object ++ " " ++ show p)
+    >> getOwnProp object p
     >>= maybe (prototypeOf object >>= maybeNull (lift $ return Undefined)
                                                 (flip getProp p))
               (lift . return)
@@ -206,6 +208,13 @@ warn message =
     do env <- getEnv
        if Warn `elem` (envFlags env)
           then liftAll $ putStrLn $ "warning: " ++ message
+          else return ()
+
+debug :: String -> Evaluate ()
+debug message =
+    do env <- getEnv
+       if Debug `elem` (envFlags env)
+          then liftAll $ putStrLn $ "debug: " ++ message
           else return ()
 
 getOwnProp :: Value -> String -> Evaluate (Maybe Value)
