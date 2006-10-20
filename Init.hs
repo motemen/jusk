@@ -35,7 +35,6 @@ setupEnv =
        defineVar "undefined" Undefined
 
        defineVar "print" (NativeFunction print')
-       defineVar "__print__" (NativeFunction printNative)
        defineVar "p" (NativeFunction printNative)
        defineVar "__env__" (NativeFunction printEnv)
        defineVar "exit" (NativeFunction exit)

@@ -72,11 +72,15 @@ bitwiseBinaryOp op n m =
 
 (.+.) :: Value -> Value -> Evaluate Value
 (.+.) x y =
-    case (x, y) of
-         (Number _, Number _) -> numericBinaryOp (+) x y
-         _ -> do s <- toString x
-                 t <- toString y
-                 return $ String $ s ++ t
+    do x <- toPrimitive x "Number"
+       y <- toPrimitive y "Number"
+       if isString x || isString y
+          then do s <- toString x
+                  t <- toString y
+                  return $ String $ s ++ t
+          else do n <- toNumber x
+                  m <- toNumber y
+                  numericBinaryOp (+) (Number n) (Number m)
 
 (.%.) :: Value -> Value -> Evaluate Value
 (.%.) (Number (Integer n)) (Number (Integer m)) =

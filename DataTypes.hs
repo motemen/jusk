@@ -35,19 +35,40 @@ liftAll = lift . lift
 
 data Env
     = Env { envFrames :: [Frame], envContStack :: [Cont], envFlags :: [Flag] }
-    deriving Show
+
+instance Show Env where
+    show (Env { envFrames = frames, envContStack = conts, envFlags = flags }) =
+        "  Frames:\n" ++
+        (unlines $ map indent $ map show frames) ++
+        "  Cont:\n" ++
+        (unlines $ map indent $ map show conts) ++
+        "  Flags:\n" ++
+        (indent $ unwords $ map show flags)
+        where indent s = "    " ++ s
+
 
 data Frame
     = GlobalFrame { frObject :: Value, frThis :: Value }
     | Activation { frObject :: Value, frThis :: Value }
     | WithFrame { frObject :: Value }
-    deriving (Show, Eq)
+    deriving Eq
+
+instance Show Frame where
+    show (GlobalFrame { frObject = object, frThis = this }) =
+        "<GlobalFrame>"
+    show (Activation { frObject = object, frThis = this }) =
+        "<Activation " ++ show object ++ " this=" ++ show this ++ ">"
+    show (WithFrame { frObject = object }) =
+        "<WithFrame " ++ show object ++ ">"
 
 type Binding
     = Value 
 
-type Cont
-    = (ContType, Value -> Evaluate Value)
+data Cont
+    = Cont { contType :: ContType, contRecv :: Value -> Evaluate Value }
+
+instance Show Cont where
+    show (Cont { contType = ct }) = show ct
 
 type JavaScriptProgram =
     [Statement]

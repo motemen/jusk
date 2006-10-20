@@ -58,7 +58,7 @@ currentFrame = liftM (head . envFrames) getEnv
 -- Continuation
 pushCont :: (Value -> Evaluate Value) -> ContType -> Evaluate ()
 pushCont c ct =
-    modify (\env@Env { envContStack = cs } -> env { envContStack = (ct, c):cs })
+    modify (\env@Env { envContStack = cs } -> env { envContStack = [Cont ct c] ++ cs })
 
 popCont :: Evaluate Cont
 popCont =
@@ -76,9 +76,9 @@ withCC ct proc =
 
 returnCont :: ContType -> Value -> Evaluate Value
 returnCont ct value =
-    do (contType, cont) <- popCont
-       if contType == ct
-          then cont value
+    do cont <- popCont
+       if contType cont == ct
+          then (contRecv cont) value
           else returnCont ct value
 
 -- Exception

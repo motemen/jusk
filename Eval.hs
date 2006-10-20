@@ -203,7 +203,7 @@ instance Eval Expression where
         eval $ Let x (Operator "+" [x, Literal $ Number $ Integer 1])
 
     eval (Operator "_++" [x]) =
-        do value <- eval x
+        do value <- readRef =<< evalValue x
            eval $ Operator "++" [x]
            return value
 
@@ -211,7 +211,7 @@ instance Eval Expression where
         eval $ Let x (Operator "-" [x, Literal $ Number $ Integer 1])
 
     eval (Operator "_--" [x]) =
-        do value <- eval x
+        do value <- readRef =<< evalValue x
            eval $ Operator "--" [x]
            return value
 
@@ -383,6 +383,7 @@ construct c _ =
 
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
+    -- XXX: hintが提供されないとき: Date オブジェクトなら "String", それ以外は "Number"
     (if hint == "String" then liftM2 mplus (tryMethod "toString") (tryMethod "valueOf")
                          else liftM2 mplus (tryMethod "valueOf") (tryMethod "toString"))
      >>= maybe (throw $ NotImplemented $ "defaultValue: " ++ show object ++ " " ++ hint)

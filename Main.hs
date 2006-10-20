@@ -44,7 +44,6 @@ printParseError input err =
 evalProgram :: JavaScriptProgram -> Evaluate Value
 evalProgram program =
     do env <- getEnv
---     liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
        liftAll $ when (Debug `elem` (envFlags env)) (mapM_ (ePutStrLn . prettyShow) program)
        if null program || ParseOnly `elem` (envFlags env)
           then return Void
@@ -67,7 +66,7 @@ runRepl' :: Evaluate ()
 runRepl' =
     do line <- liftAll (putStr "js> " >> hFlush stdout >> getLine)
        value <- evalWithMoreInput line
-       unless (isVoid value)
+       unless (isVoid value || isUndefined value)
               (do string <- toString value
                   liftAll $ putStrLn string)
        runRepl'

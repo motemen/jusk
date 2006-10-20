@@ -1,7 +1,8 @@
 {-
     Parser.hs
     構文パーザ
-    http://www.mozilla.org/js/language/js20/formal/parser-grammar.html
+    http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/11_Expressions.html
+    http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/12_Statements.html
 -}
 
 -- Module definition {{{
@@ -179,7 +180,6 @@ postfixExpression =
     do e <- leftHandSideExpression
        e <- option e (do { noLineTerminatorHere; reservedOp "++"; return $ Operator "_++" [e] }
                       <|> do { noLineTerminatorHere; reservedOp "--"; return $ Operator "_--" [e] }) 
-       whiteSpace
        return e
 
 --- Unary Operators
@@ -337,6 +337,7 @@ variableStatement :: ParserParameter -> Parser Statement
 variableStatement p =
     do reserved "var"
        bindings <- variableDeclarationList p
+       semicolon
        return $ STVariableDefinition bindings
     <?> "variable definition"
 
@@ -393,7 +394,7 @@ doWhileStatement =
        block <- statement
        reserved "while"
        condition <- parens $ expression AllowIn
-       semi
+       semicolon
        return $ STDoWhile condition block
 
 ---- While Statement
