@@ -4,7 +4,8 @@
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/10_Execution_Contexts.html
 -}
 
-module Context where
+module Context (module Context, System.Mem.performGC) where
+import System.Mem
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 
@@ -47,10 +48,13 @@ popScope = popFrame
 withScope :: [Frame] -> Evaluate a -> Evaluate a
 withScope frames thunk =
     do prevFrames <- liftM envFrames getEnv
-       modify $ \env -> env { envFrames = frames }
+       modifyScope frames
        value <- thunk
-       modify $ \env -> env { envFrames = prevFrames }
+       modifyScope prevFrames
        return value
+
+modifyScope :: [Frame] -> Evaluate ()
+modifyScope frames = modify $ \env -> env { envFrames = frames }
 
 currentFrame :: Evaluate Frame
 currentFrame =
@@ -102,9 +106,9 @@ getThis = do env <- getEnv
 
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Value
 bindParamArgs params args =
-    do binding <- mapM zipArg $ zip params args
+    do binding <- zipWithM zipArg params args
        return $ nullObject { objPropMap = mkPropMap binding, objClass = "Activation" }
-    where zipArg :: (Parameter, Value) -> Evaluate (String, Value, [PropertyAttribute])
-          zipArg (param, arg) = 
+    where zipArg :: Parameter -> Value -> Evaluate (String, Value, [PropertyAttribute])
+          zipArg param arg = 
               do argRef <- makeRef arg
                  return (param, argRef, [])

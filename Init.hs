@@ -91,9 +91,14 @@ env _ =
     do env <- getEnv
        proto <- prototypeOfVar "Object"
        object <- makeRef $ nullObject { objPrototype = proto }
-       (object ! "frames" <~) =<< (makeRef $ Array $ map frObject $ tail $ envFrames env)
+       (object ! "frames" <~) =<< (makeRef =<< (liftAll . liftM Array $ mapM ((setProto proto =<<) . return . frObject) $ tail $ envFrames env))
        (object ! "stack" <~) =<< (makeRef $ Array $ map (String . show) $ tail $ envContStack env)
        return object
+    where setProto proto object@Object { } =
+              return $ object { objPrototype = proto }
+          setProto proto ref@(Ref objRef) =
+              do modifyIORef objRef $ \object -> object { objPrototype = proto }
+                 return ref
 
 getProto (Object { objPrototype = proto }:_) =
     return proto

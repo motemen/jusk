@@ -30,6 +30,7 @@ run :: [Flag] -> Evaluate a -> IO ()
 run flags thunk =
     do nullEnv <- nullEnv flags
        (setupEnv >> thunk) `runContT` (const $ return Void) `evalStateT` nullEnv
+       performGC
        return ()
 
 parse :: String -> Either ParseError JavaScriptProgram
@@ -44,6 +45,7 @@ printParseError input err =
 evalProgram :: JavaScriptProgram -> Evaluate Value
 evalProgram program =
     do env <- getEnv
+       liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
        liftAll $ when (Debug `elem` (envFlags env)) (mapM_ (ePutStrLn . prettyShow) program)
        if null program || ParseOnly `elem` (envFlags env)
           then return Void

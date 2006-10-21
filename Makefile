@@ -4,12 +4,13 @@ FLAGS = -fwarn-overlapping-patterns \
         -fwarn-unused-binds \
         -fwarn-unused-imports \
         -fwarn-unused-matches \
-		-v0
+		-O \
+		-v
 
-all: js tags
+all: main tags
 
-js: $(SRC)
-	ghc --make Main.hs -o js $(FLAGS)
+main: $(SRC)
+	ghc --make Main.hs -o main $(FLAGS)
 
 test: $(SRC) js
 	ruby test.rb
@@ -18,4 +19,4 @@ tags: $(SRC)
 	hasktags -c *.hs
 
 clean:
-	rm *.hi *.o
+	rm *.hi *.o *.exe

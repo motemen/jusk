@@ -17,7 +17,6 @@ import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
 import Internal
 import Context
-import qualified JSObject as Object
 
 instance Eval Statement where
     eval (STVariableDefinition bindings) =
@@ -101,6 +100,14 @@ instance Eval Statement where
 
     eval (STBreak label) =
         returnCont (CBreak label) Void
+
+    eval (STReturn (Just (Operator "()" (callee:args)))) =
+        do maybeRef <- eval callee
+           let this = case maybeRef of
+                           Reference base _ -> base
+                           _ -> Null
+           callee <- getValue =<< eval callee
+           mapM evalValue args >>= jumpToFunc this callee 
 
     eval (STReturn expr) =
         do value <- maybe (return Undefined) eval expr
@@ -187,12 +194,11 @@ instance Eval Expression where
     
     eval (Operator "()" (callee:args)) =
         do maybeRef <- eval callee
-           this <- liftAll $ return
-                           $ case maybeRef of
-                                  Reference base _ -> base
-                                  _ -> Null
+           let this = case maybeRef of
+                           Reference base _ -> base
+                           _ -> Null
            callee <- getValue =<< eval callee
-           mapM evalValue args >>= callFunction this callee 
+           mapM evalValue args >>= call this callee 
     
     eval (Operator "new" (klass:args)) =
         do klass <- getValue =<< eval klass
@@ -315,51 +321,70 @@ evalOperator _ _ =
 -- }}}
 
 -- [[Call]]
-callFunction :: Value -> Value -> [Value] -> Evaluate Value
-callFunction this (callee@Function { funcParam = param, funcBody = body, funcScope = scope }) args =
-    do let arguments
-               = nullObject {
-                     objPropMap = mkPropMap
-                                  $ argProps ++
-                                    [("callee", callee, [DontEnum]),
-                                     ("length", toValue $ length args, [DontEnum])],
-                     objPrototype = Object.prototypeObject
-                 }
+call :: Value -> Value -> [Value] -> Evaluate Value
+call this (callee@Function { funcParam = param, funcBody = body, funcScope = scope }) args =
+    do arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        withScope scope
                  $ do pushFrame this binding
-                      value <- withCC CReturn (eval body)
-                      popFrame
-                      return value
-    where argProps = zip3 (map show [0..]) (args) (repeat [DontEnum])
+                      withCC CReturn (eval body)
+    where makeArguments
+              = do proto <- prototypeOfVar "Object"
+                   return $ nullObject { objPropMap = mkPropMap argProps, objPrototype = proto }
+          argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
+                         [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
-callFunction this (NativeFunction { funcNatCode = nativeFunc }) args =
+call this (NativeFunction { funcNatCode = nativeFunc }) args =
     do pushNullFrame this
        value <- nativeFunc args
        popFrame
        return value
 
-callFunction this (Ref objRef) args =
-    do object <- liftAll $ readIORef objRef
-       callFunction this object args
+call this ref@(Ref _) args =
+    do object <- readRef ref
+       call this object args
 
-callFunction this (Object { objValue = func@Function { } }) args =
-    callFunction this func args
-
-callFunction _ object _ =
+call _ object _ =
     throw $ TypeError $ show object ++ " is not a function"
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
     do method <- getProp object name
-       callFunction object method args
+       call object method args
+
+-- 末尾再帰用
+jumpToFunc :: Value -> Value -> [Value] -> Evaluate Value
+jumpToFunc this (callee@Function { funcParam = param, funcBody = body, funcScope = scope }) args =
+    do arguments <- makeArguments
+       binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
+       modifyScope scope
+       pushFrame this binding
+       eval body
+    where makeArguments
+              = do proto <- prototypeOfVar "Object"
+                   return $ nullObject { objPropMap = mkPropMap argProps, objPrototype = proto }
+          argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
+                         [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
+
+jumpToFunc this (NativeFunction { funcNatCode = nativeFunc }) args =
+    do pushNullFrame this
+       value <- nativeFunc args
+       popFrame
+       return value
+
+jumpToFunc this ref@(Ref _) args =
+    do object <- readRef ref
+       jumpToFunc this object args
+
+jumpToFunc _ object _ =
+    throw $ TypeError $ show object ++ " is not a function"
 
 -- [[Construct]]
 construct :: Value -> [Value] -> Evaluate Value
 construct (func@Function { }) args = 
     do proto <- getProp func "prototype"
        object <- makeRef $ nullObject { objPrototype = proto }
-       callFunction object func args
+       call object func args
        return object
 
 construct func@(NativeFunction { funcConstruct = Just constructor }) args =
@@ -373,7 +398,7 @@ construct func@(NativeFunction { funcConstruct = Just constructor }) args =
 construct func@(NativeFunction { }) args =
     do proto <- getProp func "prototype"
        object <- makeRef $ nullObject { objPrototype = proto }
-       callFunction object func args
+       call object func args
        return object
 
 construct (ref@Ref { }) args =
@@ -403,7 +428,7 @@ defaultValue object hint =
                  case method of
                       Null -> return Nothing
                       Undefined -> return Nothing
-                      _ -> do result <- callFunction object method []
+                      _ -> do result <- call object method []
                               if isPrimitive result
                                  then return $ Just result
                                  else return Nothing
