@@ -28,7 +28,7 @@ function [] = create []
 toStringMethod :: NativeFunction
 toStringMethod _ =
     do this <- getThis
-       String klass <- classOf this
+       klass <- classOf this
        return $ String $ "[object " ++ klass ++ "]"
 
 -- Object.prototype.valueOf

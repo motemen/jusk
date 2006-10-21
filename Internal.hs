@@ -48,15 +48,15 @@ prototypeOf _ =
     return Null
 
 -- [[Class]]
-classOf :: Value -> Evaluate Value
+classOf :: Value -> Evaluate String
 classOf ref@(Ref _) =
     classOf =<< readRef ref
 
 classOf object@(Object { }) =
-    return $ toValue $ objClass object
+    return  $ objClass object
 
 classOf _ =
-    return Null
+    return "null"
 
 -- プロパティの取得/設定
 -- [[Get]]

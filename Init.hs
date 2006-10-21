@@ -14,6 +14,7 @@ import qualified JSObject as Object
 import qualified JSArray as Array
 import qualified JSString as String
 import qualified JSFunction as Function
+import qualified JSDate as Date
 import Internal
 import Eval
 import Parser
@@ -32,6 +33,7 @@ setupEnv =
        defineConstructor "Array"    Array.prototypeObject    Array.function    Array.constructor
        defineConstructor "String"   String.prototypeObject   String.function   String.constructor
        defineConstructor "Function" Function.prototypeObject Function.function Function.constructor
+       defineConstructor "Date"     Date.prototypeObject     Date.function     Date.constructor
 
        defineVar "NaN" (Number NaN)
        defineVar "Infinity" (Number $ Double $ 1 / 0)

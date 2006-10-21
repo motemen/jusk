@@ -388,8 +388,13 @@ construct c _ =
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
     -- XXX: hintが提供されないとき: Date オブジェクトなら "String", それ以外は "Number"
-    (if hint == "String" then liftM2 mplus (tryMethod "toString") (tryMethod "valueOf")
-                         else liftM2 mplus (tryMethod "valueOf") (tryMethod "toString"))
+    (case hint of
+          "String" -> liftM2 mplus (tryMethod "toString") (tryMethod "valueOf")
+          "Number" -> liftM2 mplus (tryMethod "valueOf")  (tryMethod "toString")
+          _ -> do klass <- classOf object
+                  if klass == "Date"
+                     then liftM2 mplus (tryMethod "toString") (tryMethod "valueOf")
+                     else liftM2 mplus (tryMethod "valueOf")  (tryMethod "toString"))
      >>= maybe (throw $ NotImplemented $ "defaultValue: " ++ show object ++ " " ++ hint)
                (return)
     where tryMethod :: String -> Evaluate (Maybe Value)
