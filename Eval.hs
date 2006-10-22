@@ -222,8 +222,7 @@ instance Eval Expression where
     eval (Operator op exprs) =
         if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
            then eval $ Let (head exprs) (Operator (init op) (tail exprs))
-           else do args <- mapM evalValue exprs
-                   args <- mapM readRef args
+           else do args <- mapM readRef =<< mapM evalValue exprs
                    evalOperator op args
     
     eval (ArrayLiteral exprs) =
@@ -237,9 +236,10 @@ instance Eval Expression where
     eval (ObjectLiteral pairs) =
         do constructor <- getVar "Object"
            object <- makeRef =<< construct constructor []
-           mapM ((\(n,e) -> do n <- toString =<< eval n
-                               p <- getValue =<< eval e
-                               object ! n <~ p)) pairs
+           forM pairs $ \(n,e) -> do
+                n <- toString =<< eval n
+                p <- getValue =<< eval e
+                object ! n <~ p
            return object
     
     eval (List []) =
@@ -264,7 +264,7 @@ instance Eval Expression where
     eval (Literal num@(Number _)) =
         return $ tidyNumber num
     
-    eval (Literal func@(Function { })) =
+    eval (Literal func@Function { }) =
         do frames <- liftM envFrames getEnv
            return $ func { funcScope = frames }
 
@@ -279,28 +279,24 @@ instance Eval Expression where
 evalOperator :: String -> [Value] -> Evaluate Value
 evalOperator op [x] =
     maybe (throw $ NotImplemented $ "operator " ++ op)
-          (\op -> do value <- (opUnaryFunc op) x
-                     return $ tidyNumber value)
-          (find (\p -> case p of
-                            Unary op' _ -> op' == op
-                            _ -> False)
-                operatorsTable)
+          (\op -> liftM tidyNumber $ opUnaryFunc op x)
+          (find (isUnaryOp op) operatorsTable)
+    where isUnaryOp op (Unary op' _) = op == op'
+          isUnaryOp _ _ = False
 
 evalOperator op [x,y] =
     maybe (throw $ NotImplemented $ "operator " ++ op)
-          (\op -> do value <- (opBinaryFunc op) x y
-                     return $ tidyNumber value)
-          (find (\p -> case p of
-                            Binary op' _ -> op' == op
-                            _ -> False) operatorsTable)
+          (\op -> liftM tidyNumber $ opBinaryFunc op x y)
+          (find (isBinaryOp op) operatorsTable)
+    where isBinaryOp op (Binary op' _) = op == op'
+          isBinaryOp _ _ = False
 
 evalOperator op [x,y,z] =
     maybe (throw $ NotImplemented $ "operator " ++ op)
-          (\op -> do value <- (opTernaryFunc op) x y z
-                     return $ tidyNumber value)
-          (find (\p -> case p of
-                            Ternary op' _ -> op' == op
-                            _ -> False) operatorsTable)
+          (\op -> liftM tidyNumber $ opTernaryFunc op x y z)
+          (find (isTernaryOp op) operatorsTable)
+    where isTernaryOp op (Ternary op' _) = op == op'
+          isTernaryOp _ _ = False
 
 evalOperator _ _ =
     return Undefined
@@ -326,7 +322,7 @@ call this (NativeFunction { funcNatCode = nativeFunc }) args =
        popFrame
        return value
 
-call this ref@(Ref _) args =
+call this ref@Ref { } args =
     do object <- readRef ref
        call this object args
 
@@ -358,7 +354,7 @@ jumpToFunc this (NativeFunction { funcNatCode = nativeFunc }) args =
        popFrame
        return value
 
-jumpToFunc this ref@(Ref _) args =
+jumpToFunc this ref@Ref { } args =
     do object <- readRef ref
        jumpToFunc this object args
 
@@ -373,24 +369,24 @@ construct (func@Function { }) args =
        call object func args
        return object
 
-construct func@(NativeFunction { funcConstruct = Just constructor }) args =
+construct func@NativeFunction { funcConstruct = Just constructor } args =
     do proto <- getProp func "prototype"
        object <- makeRef =<< constructor args
        liftAll $ modifyIORef (getRef object) $ setProto proto
        return object
-    where setProto proto object@(Object { }) = object { objPrototype = proto }
+    where setProto proto object@Object { } = object { objPrototype = proto }
           setProto _ x = x
 
-construct func@(NativeFunction { }) args =
+construct func@NativeFunction { } args =
     do proto <- getProp func "prototype"
        object <- makeRef $ nullObject { objPrototype = proto }
        call object func args
        return object
 
-construct (ref@Ref { }) args =
+construct ref@Ref { } args =
     readRef ref >>= flip construct args
 
-construct (Object { objValue = value }) args | not $ isNull value =
+construct Object { objValue = value } args | not $ isNull value =
     construct value args
 
 construct c _ =

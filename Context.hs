@@ -66,7 +66,7 @@ currentFrame =
 -- Continuation
 pushCont :: (Value -> Evaluate Value) -> ContType -> Evaluate ()
 pushCont c ct =
-    modify (\env@Env { envContStack = cs } -> env { envContStack = [Cont ct c] ++ cs })
+    modify $ \env@Env { envContStack = cs } -> env { envContStack = [Cont ct c] ++ cs }
 
 popCont :: Evaluate Cont
 popCont =

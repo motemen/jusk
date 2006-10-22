@@ -32,7 +32,7 @@ toStringMethod _ =
        showFunc this
     where showFunc func@Function { } =
               return $ toValue $ prettyShow func
-          showFunc func@(NativeFunction { }) =
+          showFunc func@NativeFunction { } =
               liftM toValue $ toString func
           showFunc (Object { objValue = func }) =
               showFunc func

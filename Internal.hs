@@ -38,10 +38,10 @@ prototypeOf (NativeFunction { }) =
 prototypeOf (Array _) =
     prototypeOfVar "Array" 
 
-prototypeOf ref@(Ref _) =
+prototypeOf ref@Ref { } =
     prototypeOf =<< readRef ref
 
-prototypeOf object@(Object { }) =
+prototypeOf object@Object { } =
     return $ objPrototype object
 
 prototypeOf _ =
@@ -49,10 +49,10 @@ prototypeOf _ =
 
 -- [[Class]]
 classOf :: Value -> Evaluate String
-classOf ref@(Ref _) =
+classOf ref@Ref { } =
     classOf =<< readRef ref
 
-classOf object@(Object { }) =
+classOf object@Object { } =
     return  $ objClass object
 
 classOf _ =
@@ -107,13 +107,13 @@ canPut object p =
 
 -- [[HasProperty]]
 hasProperty :: Value -> String -> Evaluate Bool
-hasProperty object@(Object { objPropMap = props }) p =
+hasProperty object@Object { objPropMap = props } p =
     maybe (prototypeOf object >>= maybeNull (lift $ return False)
                                             (flip hasProperty p))
           (const $ lift $ return True)
           (Map.lookup p props)
 
-hasProperty ref@(Ref { }) p =
+hasProperty ref@Ref { } p =
     flip hasProperty p =<< readRef ref
 
 hasProperty o p =
@@ -124,7 +124,7 @@ hasOwnProperty :: Value -> String -> Evaluate Bool
 hasOwnProperty (Object { objPropMap = props }) p =
     return $ Map.member p props
 
-hasOwnProperty ref@(Ref { }) p =
+hasOwnProperty ref@Ref { } p =
     flip hasOwnProperty p =<< readRef ref
 
 hasOwnProperty o p =
@@ -217,17 +217,17 @@ debug message =
           else return ()
 
 getOwnProp :: Value -> String -> Evaluate (Maybe Value)
-getOwnProp object@(Object { }) p =
+getOwnProp object@Object { } p =
     return $ liftM propValue $ Map.lookup p (objPropMap object)
 
 getOwnProp (Ref objRef) p =
     do object <- liftAll $ readIORef objRef
        getOwnProp object p
 
-getOwnProp func@(Function { }) p =
+getOwnProp func@Function { } p =
     return $ liftM propValue $ Map.lookup p (objPropMap func)
 
-getOwnProp func@(NativeFunction { }) p =
+getOwnProp func@NativeFunction { } p =
     return $ liftM propValue $ Map.lookup p (objPropMap func)
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
@@ -252,7 +252,7 @@ getOwnProp o p =
        return Nothing
 
 getOwnPropAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
-getOwnPropAttr object@(Object { }) p =
+getOwnPropAttr object@Object { } p =
     return $ liftM propAttr $ Map.lookup p (objPropMap object)
 
 getOwnPropAttr (Array _) "length" =

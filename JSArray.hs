@@ -50,9 +50,10 @@ push [] =
 push xs =
     do thisRef <- getThis
        this <- readRef thisRef
-       liftAll $ case this of
-                      Array _ -> modifyIORef (getRef thisRef)
-                                             (\(Array array) -> Array $ array ++ xs)
+       case this of
+            Array _ -> liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (array ++ xs)
+            _ -> do throw $ NotImplemented $ "Array.prototype.push: " ++ show this
+                    return ()
        len <- getProp thisRef "length"
        return len
 
@@ -63,9 +64,9 @@ pop _ =
        this <- readRef thisRef
        case this of
             Array []    -> return Undefined
-            Array array -> do liftAll $ modifyIORef (getRef thisRef)
-                                                    (\(Array array) -> Array $ init array)
+            Array array -> do liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (init array)
                               return $ last array
+            _ -> throw $ NotImplemented $ "Array.prototype.pop: " ++ show this
 
 -- Array.prototype.unshift
 unshift :: NativeCode
@@ -77,9 +78,10 @@ unshift [] =
 unshift xs =
     do thisRef <- getThis
        this <- readRef thisRef -- Must be a reference
-       liftAll $ case this of
-                      Array _ -> modifyIORef (getRef thisRef)
-                                             (\(Array array) -> Array $ xs ++ array)
+       case this of
+            Array _ -> liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (xs ++ array)
+            _ -> do throw $ NotImplemented $ "Array.prototype.unshift: " ++ show this
+                    return ()
        len <- getProp thisRef "length"
        return len
 
@@ -90,9 +92,10 @@ shift _ =
        this <- readRef thisRef
        case this of
             Array []    -> return Undefined
-            Array array -> do liftAll $ modifyIORef (getRef thisRef)
-                                                    (\(Array array) -> Array $ tail array)
+            Array array -> do liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (tail array)
                               return $ head array
+            _ -> do throw $ NotImplemented $ "Array.prototype.shift: " ++ show this
+                    return Void
 
 -- Array.prototype.toString
 toStringMethod :: NativeCode

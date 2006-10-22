@@ -19,7 +19,7 @@ operatorsTable = [
         Unary  "-"   $ numericUnaryOp negate,
 
         Unary  "~"   $ (.~.),
---      Unary  "!"   $ (.!.),
+        Unary  "!"   $ (.!.),
 
         Binary "*"   $ numericBinaryOp (*),
         Binary "/"   $ numericBinaryOp (/),
@@ -94,9 +94,10 @@ bitwiseBinaryOp op n m =
 (.%.) _ _ = return $ Number NaN
 
 (.~.) :: Value -> Evaluate Value
-(.~.) n =
-    do n <- toInt n
-       return $ toValue $ complement n
+(.~.) = liftM (toValue . complement) . toInt
+
+(.!.) :: Value -> Evaluate Value
+(.!.) = liftM (toValue . not) . toBoolean
 
 (.>>.) :: Value -> Value -> Evaluate Value
 (.>>.) n m =

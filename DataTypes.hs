@@ -114,15 +114,16 @@ data Value
     | String String
     | Array [Value]
     | Function {
-        funcName  :: String,
-        funcParam :: Parameters,
-        funcBody  :: Statement,
-        funcScope :: [Frame],                  -- [[Scope]]
-        funcConstruct :: Maybe NativeCode, -- [[Construct]]
-        objPropMap :: Map String PropertyPair
+        funcName      :: String,
+        funcParam     :: Parameters,
+        funcBody      :: Statement,
+        funcScope     :: [Frame],           -- [[Scope]]
+        funcConstruct :: Maybe NativeCode,  -- [[Construct]]
+
+        objPropMap    :: Map String PropertyPair
       }
     | Object {
-        objPropMap :: Map String PropertyPair,
+        objPropMap   :: Map String PropertyPair,
 
         --  内部プロパティ
         objPrototype :: Value,  -- [[Prototype]]
@@ -140,6 +141,7 @@ data Value
         funcArity     :: Int,
         funcNatCode   :: NativeCode,
         funcConstruct :: Maybe NativeCode,
+
         objPropMap    :: Map String PropertyPair
       }
     | Reference { refBase :: Value, refName :: String }
@@ -281,7 +283,7 @@ instance Show a => Show (IORef a) where
     show x = "IORef " ++ (show $ unsafePerformIO $ readIORef x)
 
 makeRef :: Value -> Evaluate Value
-makeRef ref@(Ref _) = return ref
+makeRef ref@Ref { } = return ref
 
 makeRef object =
     do ref <- liftAll $ newIORef object

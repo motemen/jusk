@@ -9,7 +9,7 @@ import Text.ParserCombinators.Parsec.Pos
 import Text.ParserCombinators.Parsec.Error
 import Data.Char (digitToInt)
 import List
-import Monad
+import Control.Monad
 
 import DataTypes
 
@@ -335,8 +335,8 @@ operator op =
 followedBy :: Show tok => GenParser tok st a -> GenParser tok st b -> GenParser tok st a
 p `followedBy` q = do { x <- p; q; return x }
 
-times :: Integer -> GenParser tok st a -> GenParser tok st [a]
-times n p = foldl (\xs _ -> do { ys <- xs; y <- p; return $ y:ys }) (return []) [1..n]
+times :: Int -> GenParser tok st a -> GenParser tok st [a]
+times = replicateM
 
 ifFail :: GenParser tok st a -> a -> GenParser tok st a
 p `ifFail` x = option x p
