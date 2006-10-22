@@ -44,7 +44,8 @@ showError :: String -> ParseError -> String
 showError source err =
     let pos = errorPos err
         in unlines
-           $ [if length (lines source) > sourceLine pos - 1
+           $ ["line " ++ show (sourceLine pos) ++ ", column " ++ show (sourceColumn pos) ++ ":",
+              if length (lines source) > sourceLine pos - 1
                  then lines source !! (sourceLine pos - 1)
                  else last $ lines source,
               take (sourceColumn pos - 1) (repeat '.') ++ "^",

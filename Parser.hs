@@ -5,7 +5,6 @@
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/12_Statements.html
 -}
 
--- Module definition {{{
 module Parser (module Parser, Text.ParserCombinators.Parsec.ParseError) where
 import Text.ParserCombinators.Parsec hiding(Parser)
 import Monad
@@ -446,8 +445,9 @@ forStatement =
                  symbol ")"
                  block <- statement
                  return $ STFor init cond updt block)
-           <|> (do binding <- (do reserved "var" -- TODO: leftHandSideExpression
+           <|> (do binding <- (do reserved "var"
                                   liftM STVarDef $ variableDeclarationList NoIn)
+                              <|> liftM STExpression leftHandSideExpression
                    reserved "in"
                    object <- expression AllowIn
                    symbol ")"

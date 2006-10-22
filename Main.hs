@@ -29,8 +29,7 @@ ePrint = hPrint stderr
 run :: [Flag] -> Evaluate a -> IO ()
 run flags thunk =
     do nullEnv <- nullEnv flags
-       (setupEnv >> thunk) `runContT` (const $ return Void) `evalStateT` nullEnv
-       performGC
+       (withCC CExit $ setupEnv >> thunk >> return Void) `runContT` (const $ return Void) `evalStateT` nullEnv
        return ()
 
 parse :: String -> Either ParseError JavaScriptProgram
@@ -60,7 +59,10 @@ evalText input =
 evalFile :: [Flag] -> String -> IO ()
 evalFile flags filename =
     do content <- readFile filename
-       run flags $ do e <- callCC $ \cc -> do { pushCont cc CThrow; evalText content; return Void }
+       run flags $ do e <- callCC $ \cc -> do
+                               pushCont cc CThrow
+                               evalText content
+                               return Void
                       when (isException e)
                            (liftIO $ print $ exceptionBody e)
 
@@ -84,7 +86,9 @@ runRepl :: [Flag] -> IO ()
 runRepl flags =
     run flags setupCatchAndRunRepl
     where setupCatchAndRunRepl =
-              do e <- callCC $ \cc -> do { pushCont cc CThrow; return Void }
+              do e <- callCC $ \cc -> do
+                          pushCont cc CThrow
+                          return Void
                  case e of
                       Void -> runRepl'
                       Exception SysExit -> return ()

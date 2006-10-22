@@ -93,7 +93,7 @@ env _ =
        proto <- prototypeOfVar "Object"
        object <- makeRef $ nullObject { objPrototype = proto }
        (object ! "frames" <~) =<< makeRef =<< (liftIO . liftM Array $ mapM (setProto proto . frObject) $ tail $ envFrames env)
-       (object ! "stack" <~) =<< (makeRef $ Array $ map (String . show) $ tail $ envContStack env)
+       (object ! "stack" <~) =<< (makeRef $ Array $ map (String . show) $ envContStack env)
        return object
     where setProto proto object@Object { } =
               return $ object { objPrototype = proto }
@@ -111,5 +111,8 @@ getProto (ref@(Ref _):_) =
 getProto _ =
     return Null
 
-exit _ =
-   throw SysExit
+exit [] =
+   returnCont CExit Void
+
+exit (x:_) =
+   returnCont CExit x

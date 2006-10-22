@@ -271,8 +271,9 @@ data Exception
     deriving Eq
 
 instance Show Exception where
-    show (TypeError e)             = "TypeError: " ++ e
-    show (ReferenceError msg)      = "ReferenceError: " ++ msg
+    show (TypeError e)            = "TypeError: " ++ e
+    show (ReferenceError msg)     = "ReferenceError: " ++ msg
+    show (SyntaxError message)    = "SyntaxError:\n" ++ message
     show (NotImplemented message) = "*** not implemented: " ++ message
 
 data ContType
@@ -280,6 +281,7 @@ data ContType
     | CThrow
     | CBreak { ctLabel :: Maybe String }
     | CContinue { ctLabel :: Maybe String }
+    | CExit
     deriving (Eq, Show)
 
 instance Show (a -> b) where

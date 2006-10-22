@@ -78,12 +78,23 @@ instance Eval Statement where
                           evalForBlock value)
                       (return lastValue)
 
-    eval (STForIn (STVarDef { varDefBindings = [(name, _)] }) object block) =
-        withCC (CBreak Nothing) 
-               (do object <- readRef =<< getValue =<< eval object
-                   liftM lastOrVoid $ mapM evalForInBlock $ Map.keys $ Map.filter (notElem DontEnum . propAttr) $ objPropMap object)
-        where evalForInBlock n =
-                  do defineVar name $ String n
+    eval (STForIn init object block) =
+        do var <- case init of
+                       STVarDef [(name, expr)] ->
+                           defineVar name =<< maybe (return Undefined) eval expr
+                       STExpression (Identifier name) ->
+                           defineVar name Undefined        -- 既に定義されていてもどのみち上書きする
+                       STExpression (List _) ->
+                           throw $ ReferenceError $ "invalid left-hand side of for-in loop"
+                       STExpression expr ->
+                           eval expr
+                       _ -> throw $ ReferenceError $ "invalid left-hand side of for-in loop"
+           withCC (CBreak Nothing) 
+                  (do object <- readRef =<< getValue =<< eval object
+                      liftM lastOrVoid $ mapM (evalForInBlock var)
+                                       $ Map.keys $ Map.filter (notElem DontEnum . propAttr) $ objPropMap object)
+        where evalForInBlock var n =
+                  do putValue var $ String n
                      eval block
               lastOrVoid [] = Void
               lastOrVoid xs = last xs
