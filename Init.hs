@@ -47,10 +47,11 @@ setupEnv =
        return ()
 
        where defineConstructor name prototypeObject function construct =
-                 do proto <- makeRef =<< if name == "Object"
-                                            then return prototypeObject
-                                            else do objectProto <- prototypeOfVar "Object"
-                                                    return $ prototypeObject { objPrototype = objectProto }
+                 do proto <- makeRef
+                             =<< if name == "Object"
+                                    then return prototypeObject
+                                    else do objectProto <- prototypeOfVar "Object"
+                                            return $ prototypeObject { objPrototype = objectProto }
                     constructor <- makeRef nullNativeFunc {
                         funcName      = name,
                         funcArity     = 1,

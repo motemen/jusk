@@ -19,7 +19,7 @@ import Internal
 import Context
 
 instance Eval Statement where
-    eval (STVariableDefinition bindings) =
+    eval (STVarDef bindings) =
         do mapM bindVariable bindings
            return Void
         where bindVariable (name, Nothing) =
@@ -27,7 +27,7 @@ instance Eval Statement where
               bindVariable (name, Just expr) =
                   eval expr >>= getValue >>= defineVar name
 
-    eval (STFunctionDefinition { funcDefFunc = func@Function { funcName = name } }) =
+    eval (STFuncDef { funcDefFunc = func@Function { funcName = name } }) =
         do frames <- liftM envFrames getEnv
            defineVar name $ func { funcScope = frames }
 
@@ -38,12 +38,9 @@ instance Eval Statement where
         getValue =<< eval expr
     
     eval (STIf condition thenStatement maybeElseStatement) =
-        do c <- toBoolean =<< getValue =<< eval condition
-           if c
-              then eval thenStatement
-              else maybe (return Void)
-                         (eval)
-                         (maybeElseStatement)
+        ifM (toBoolean =<< getValue =<< eval condition)
+            (eval thenStatement)
+            (maybe (return Void) eval maybeElseStatement)
     
     eval (STBlock []) =
         return Void
@@ -56,20 +53,18 @@ instance Eval Statement where
                (evalDoWhileBlock Void)
         where evalDoWhileBlock lastValue =
                   do value <- withCC (CContinue Nothing) (eval block)
-                     cond <- toBoolean =<< eval condition
-                     if cond
-                        then evalDoWhileBlock value
-                        else return lastValue
+                     ifM (toBoolean =<< eval condition)
+                         (evalDoWhileBlock value)
+                         (return lastValue)
 
     eval (STWhile condition block) =
         withCC (CBreak Nothing)
                (evalWhileBlock Void)
         where evalWhileBlock lastValue =
-                  do cond <- toBoolean =<< eval condition
-                     if cond
-                        then do value <- withCC (CContinue Nothing) (eval block)
-                                evalWhileBlock value
-                        else return lastValue
+                  ifM (toBoolean =<< eval condition)
+                      (do value <- withCC (CContinue Nothing) (eval block)
+                          evalWhileBlock value)
+                      (return lastValue)
               
     eval (STFor initialize condition update block) =
         withCC (CBreak Nothing)
@@ -77,23 +72,21 @@ instance Eval Statement where
                    value <- evalForBlock Void
                    return value)
         where evalForBlock lastValue =
-                  do value <- toBoolean =<< eval condition
-                     if value
-                        then do value <- withCC (CContinue Nothing) (eval block)
-                                eval update
-                                evalForBlock value
-                        else return lastValue
+                  ifM (toBoolean =<< eval condition)
+                      (do value <- withCC (CContinue Nothing) (eval block)
+                          eval update
+                          evalForBlock value)
+                      (return lastValue)
 
-    eval (STForIn (STVariableDefinition { varDefBindings = [(name, _)] }) object block) =
+    eval (STForIn (STVarDef { varDefBindings = [(name, _)] }) object block) =
         withCC (CBreak Nothing) 
                (do object <- readRef =<< getValue =<< eval object
-                   props <- liftAll $ return $ Map.keys $ objPropMap object
-                   liftM last $ mapM (\n -> do binding <- bindParamArgs [name] [String n]
-                                               pushScope binding
-                                               value <- eval block
-                                               popScope
-                                               return value)
-                                     props)
+                   liftM lastOrVoid $ mapM evalForInBlock $ Map.keys $ Map.filter (notElem DontEnum . propAttr) $ objPropMap object)
+        where evalForInBlock n =
+                  do defineVar name $ String n
+                     eval block
+              lastOrVoid [] = Void
+              lastOrVoid xs = last xs
 
     eval (STContinue label) =
         returnCont (CContinue label) Void
@@ -141,10 +134,9 @@ instance Eval Statement where
 
               evalSwitchStatement value clauses@((Just e, _):cs) defaultClause lastValue =
                   do e <- getValue =<< eval e
-                     m <- toBoolean =<< comparisonOp (==) value e 
-                     if m
-                        then liftM last $ mapM ((getValue =<<) . eval . snd) clauses
-                        else evalSwitchStatement value cs defaultClause lastValue
+                     ifM (toBoolean =<< comparisonOp (==) value e)
+                         (liftM last $ mapM ((getValue =<<) . eval . snd) clauses)
+                         (evalSwitchStatement value cs defaultClause lastValue)
 
     eval (STThrow expr) =
         do value <- eval expr
@@ -152,21 +144,17 @@ instance Eval Statement where
 
     eval (STTry tryStatement catchClause finallyClause) =
         do e <- withCC CThrow (eval tryStatement)
-           v1 <- case e of
-                      Exception _ ->
-                          if isNothing catchClause
-                             then return Void
-                             else do let (p, st) = fromJust catchClause
-                                     binding <- bindParamArgs [p] [e]
-                                     pushScope binding
-                                     value <- eval st
-                                     popScope
-                                     return value
+           v1 <- case catchClause of
+                      Just (p, st) | isException e
+                           -> do binding <- bindParamArgs [p] [e]
+                                 pushScope binding
+                                 value <- eval st
+                                 popScope
+                                 return value
                       _ -> return Void
            v2 <- case finallyClause of
                       Just st -> eval st
                       Nothing -> return Void
-
            return $ v1 ||| v2
         where x ||| Void = x
               Void ||| y = y
@@ -233,10 +221,10 @@ instance Eval Expression where
 
     eval (Operator op exprs) =
         if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
-              then eval $ Let (head exprs) (Operator (init op) (tail exprs))
-              else do args <- mapM evalValue exprs
-                      args <- mapM readRef args
-                      evalOperator op args
+           then eval $ Let (head exprs) (Operator (init op) (tail exprs))
+           else do args <- mapM evalValue exprs
+                   args <- mapM readRef args
+                   evalOperator op args
     
     eval (ArrayLiteral exprs) =
         do constructor <- getVar "Array"
@@ -261,13 +249,11 @@ instance Eval Expression where
         liftM last $ mapM evalValue exprs
     
     eval (Let (Identifier name) right) =
-        do bound <- isBound name
-           value <- getValue =<< eval right
-           if bound
-              then setVar name value
-              else do warn $ "assignment to undeclared variable " ++ name
-                      v <- defineVar name value
-                      return v
+        do value <- getValue =<< eval right
+           ifM (isBound name)
+               (setVar name value)
+               (do warn $ "assignment to undeclared variable " ++ name
+                   defineVar name value)
     
     eval (Let left right) =
         do left <- eval left
@@ -432,3 +418,10 @@ defaultValue object hint =
                               if isPrimitive result
                                  then return $ Just result
                                  else return Nothing
+
+ifM :: Monad m => m Bool -> m a -> m a -> m a
+ifM mc mt me =
+    do cond <- mc
+       if cond
+          then mt
+          else me

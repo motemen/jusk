@@ -366,7 +366,7 @@ variableStatement p =
     do reserved "var"
        bindings <- variableDeclarationList p
        semicolon
-       return $ STVariableDefinition bindings
+       return $ STVarDef bindings
     <?> "variable definition"
 
 variableDeclarationList :: ParserParameter -> Parser [VariableBinding]
@@ -447,7 +447,7 @@ forStatement =
                  block <- statement
                  return $ STFor init cond updt block)
            <|> (do binding <- (do reserved "var" -- TODO: leftHandSideExpression
-                                  liftM STVariableDefinition $ variableDeclarationList NoIn)
+                                  liftM STVarDef $ variableDeclarationList NoIn)
                    reserved "in"
                    object <- expression AllowIn
                    symbol ")"
@@ -458,7 +458,7 @@ forInitializer :: Parser Statement
 forInitializer =
     option STEmpty
            ((do reserved "var"
-                liftM STVariableDefinition $ variableDeclarationList NoIn)
+                liftM STVarDef $ variableDeclarationList NoIn)
             <|> (liftM STExpression $ expression NoIn))
 
 expressionOpt :: Parser Expression
@@ -582,7 +582,7 @@ functionDeclaration =
     do reserved "function"
        name <- identifierString
        function <- functionCommon
-       return $ STFunctionDefinition { funcDefFunc = function { funcName = name } }
+       return $ STFuncDef { funcDefFunc = function { funcName = name } }
     <?> "function declaration"
 
 functionExpression :: Parser Expression

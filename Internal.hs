@@ -68,8 +68,7 @@ getProp (object@Object { objValue = value }) p | not $ isNull value =
               (lift . return)
 
 getProp object p =
-    (debug $ "getProp: " ++ show object ++ " " ++ show p)
-    >> getOwnProp object p
+    getOwnProp object p
     >>= maybe (prototypeOf object >>= maybeNull (lift $ return Undefined)
                                                 (flip getProp p))
               (lift . return)
@@ -177,7 +176,7 @@ defineVar name value =
        case frame of
             WithFrame { } -> do popFrame
                                 defineVar name value
-                                modify (\env@Env { envFrames = frames } -> env { envFrames = frame:frames })
+                                modify $ \env@Env { envFrames = frames } -> env { envFrames = frame:frames }
                                 return value
             _ -> do value <- makeRef value
                     frameObject <- liftM frObject currentFrame

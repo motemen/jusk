@@ -74,13 +74,13 @@ type VariableBinding
     = (String, Maybe Expression)
 
 data Statement
-    = STVariableDefinition { varDefBindings :: [VariableBinding] }
-    | STFunctionDefinition { funcDefFunc :: Value }
+    = STVarDef { varDefBindings :: [VariableBinding] }
+    | STFuncDef { funcDefFunc :: Value }
     | STEmpty
     | STExpression Expression
     | STBlock [Statement]
     | STLabelled String Statement
-    | STIf Expression Statement (Maybe Statement)
+    | STIf { ifCond :: Expression, ifThen :: Statement, ifElse :: Maybe Statement }
     | STSwitch { swExpression :: Expression, swClauses :: [(Maybe Expression, Statement)] }
     | STDoWhile Expression Statement
     | STWhile Expression Statement

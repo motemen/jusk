@@ -18,10 +18,10 @@ class PrettyShow a where
     prettyShow :: a -> String
 
 instance PrettyShow Statement where
-    prettyShow (STVariableDefinition bindings) =
+    prettyShow (STVarDef bindings) =
         "var " ++ map showVarBinding bindings `joinBy` "," ++ ";"
 
-    prettyShow (STFunctionDefinition func) =
+    prettyShow (STFuncDef func) =
         prettyShow func
     
     prettyShow (STEmpty) = ";"

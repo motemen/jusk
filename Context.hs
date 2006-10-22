@@ -71,8 +71,7 @@ pushCont c ct =
 popCont :: Evaluate Cont
 popCont =
     do env <- getEnv
-       let cs = envContStack env
-       case cs of
+       case envContStack env of
             [] -> do error "contstack is empty"
             (c:cs) -> do put $ env { envContStack = cs }
                          return c
@@ -97,12 +96,11 @@ throw e =
     returnCont CThrow (Exception e)
 
 getThis :: Evaluate Value
-getThis = do env <- getEnv
-             return $ getThis' $ envFrames env
-          where getThis' (WithFrame { }:fs)
-                    = getThis' fs
-                getThis' (f:_)
-                    = frThis f
+getThis =
+    do env <- getEnv
+       return $ getThis' $ envFrames env
+    where getThis' (WithFrame { }:fs) = getThis' fs
+          getThis' (f:_) = frThis f
 
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Value
 bindParamArgs params args =
