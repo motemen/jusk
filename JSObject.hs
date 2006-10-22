@@ -21,18 +21,18 @@ prototypeObject =
     }
 
 -- Object()
-function :: NativeFunction
+function :: NativeCode
 function [] = create []
 
 -- Object.prototype.toString
-toStringMethod :: NativeFunction
+toStringMethod :: NativeCode
 toStringMethod _ =
     do this <- getThis
        klass <- classOf this
        return $ String $ "[object " ++ klass ++ "]"
 
 -- Object.prototype.valueOf
-valueOf :: NativeFunction
+valueOf :: NativeCode
 valueOf _ =
     do this <- getThis
        return this
@@ -46,7 +46,7 @@ create props =
     }
     where withNoAttr (name, value) = (name, mkProp value [])
 
-constructor :: NativeFunction
+constructor :: NativeCode
 constructor [] =
     return $ nullObject {
         objPrototype = prototypeObject,

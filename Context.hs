@@ -102,6 +102,10 @@ getThis =
     where getThis' (WithFrame { }:fs) = getThis' fs
           getThis' (f:_) = frThis f
 
+getGlobal :: Evaluate Value
+getGlobal =
+    liftM (frObject . last . envFrames) getEnv
+
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Value
 bindParamArgs params args =
     do binding <- zipWithM zipArg params args

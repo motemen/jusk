@@ -29,11 +29,11 @@ prototypeObject =
     }
 
 -- Array()
-function :: NativeFunction
+function :: NativeCode
 function = constructor
 
 -- new Array()
-constructor :: NativeFunction
+constructor :: NativeCode
 constructor [Number (Integer n)] =
     return $ Array $ take (fromInteger n) (repeat Undefined)
 
@@ -41,7 +41,7 @@ constructor xs =
     return $ Array xs
 
 -- Array.prototype.push
-push :: NativeFunction
+push :: NativeCode
 push [] =
     do this <- getThis
        len <- getProp this "length"
@@ -57,7 +57,7 @@ push xs =
        return len
 
 -- Array.prototype.pop
-pop :: NativeFunction
+pop :: NativeCode
 pop _ =
     do thisRef <- getThis
        this <- readRef thisRef
@@ -68,7 +68,7 @@ pop _ =
                               return $ last array
 
 -- Array.prototype.unshift
-unshift :: NativeFunction
+unshift :: NativeCode
 unshift [] =
     do this <- getThis
        len <- getProp this "length"
@@ -84,7 +84,7 @@ unshift xs =
        return len
 
 -- Array.prototype.shift
-shift :: NativeFunction
+shift :: NativeCode
 shift _ =
     do thisRef <- getThis
        this <- readRef thisRef
@@ -95,11 +95,11 @@ shift _ =
                               return $ head array
 
 -- Array.prototype.toString
-toStringMethod :: NativeFunction
+toStringMethod :: NativeCode
 toStringMethod _ = join []
 
 -- Array.prototype.concat
-concatMethod :: NativeFunction
+concatMethod :: NativeCode
 concatMethod args =
     do this <- readRef =<< getThis
        case this of
@@ -113,7 +113,7 @@ concatMethod args =
               concatArgs (array ++ [x]) xs
 
 -- Array.prototype.join
-join :: NativeFunction
+join :: NativeCode
 join args =
     do this <- readRef =<< getThis
        delim <- if null args then liftAll $ return "," else toString $ head args

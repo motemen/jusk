@@ -12,11 +12,8 @@ all: main tags
 main: $(SRC)
 	ghc --make Main.hs -o main $(FLAGS)
 
-test: $(SRC) js
-	ruby test.rb
-
 tags: $(SRC)
 	hasktags -c *.hs
 
 clean:
-	rm *.hi *.o *.exe
+	rm *.hi *.o *.exe main

@@ -69,8 +69,17 @@ toNumber (String string) =
          Left _ -> return NaN
          Right (Literal (Number n)) -> return n
 
-toNumber object@(Object { }) =
+toNumber object@Object { } =
     toPrimitive object "Number" >>= toNumber
+
+toNumber ref@Ref { } =
+    readRef ref >>= toNumber
+
+toNumber ref@Reference { } =
+    getValue ref >>= toNumber
+
+toNumber o =
+    (throw $ NotImplemented $ "toNumber: " ++ show o) >> return NaN
 
 toInteger :: Value -> Evaluate Integer
 toInteger (Number NaN) = return 0
@@ -131,7 +140,7 @@ toString (Number NaN)         = return "NaN"
 toString (NativeFunction { funcName = name }) =
     return $ "function " ++ name ++ "() { [native code] }"
 
-toString ref@(Reference { }) =
+toString ref@Reference { } =
     do object <- getValue ref
        toString object
 

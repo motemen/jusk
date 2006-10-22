@@ -6,21 +6,27 @@
 
 module JSFunction where
 import Monad
+import qualified Data.Map as Map
+import Maybe
 
 import DataTypes
 import PrettyShow
 import Context
+import Eval hiding(callMethod)
+import Internal
 import JSType
 
 -- Function.prototype
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = nativeFuncPropMap [("constructor", constructor, 1),
-                                        ("toString",    toStringMethod, 0)]
+        objPropMap = nativeFuncPropMap [("constructor", constructor,    1),
+                                        ("toString",    toStringMethod, 0),
+                                        ("call",        callMethod,     1),
+                                        ("apply",       apply,          2)]
     }
 
-toStringMethod :: NativeFunction
+toStringMethod :: NativeCode
 toStringMethod _ =
     do this <- readRef =<< getThis
        showFunc this
@@ -33,10 +39,35 @@ toStringMethod _ =
           showFunc x =
               throw $ TypeError $ "Function.prototype.toString: " ++ show x ++ " is not a function"
 
--- Function()
-function :: NativeFunction
+-- Function
+function :: NativeCode
 function args = constructor args
 
--- new Function()
-constructor :: NativeFunction
+-- new Function
+constructor :: NativeCode
 constructor _ = throw $ NotImplemented $ "Function.prototype.constructor"
+
+-- Function.prototype.call
+callMethod :: NativeCode
+callMethod (thisArg:args) =
+    do func <- getThis
+       call thisArg func args
+
+-- Function.prototype.apply
+apply :: NativeCode
+apply (thisArg:argArray:_) =
+    do func <- getThis
+       argArray <- readRef argArray
+       case argArray of
+            Array args -> call thisArg func args
+            _ | isArguments argArray ->
+                do length <- toUInt $ argArray ! "length"
+                   args <- mapM (getProp argArray . show) [0..length-1]
+                   call thisArg func args
+            _ -> throw $ TypeError $ "second argument to Function.prototype.apply must be an array"
+
+isArguments :: Value -> Bool
+isArguments (Object { objPropMap = propMap }) =
+    fromMaybe False (Map.lookup "callee" propMap >>= return . (elem DontEnum) . propAttr)
+
+isArguments _ = False

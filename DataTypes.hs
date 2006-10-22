@@ -118,7 +118,7 @@ data Value
         funcParam :: Parameters,
         funcBody  :: Statement,
         funcScope :: [Frame],                  -- [[Scope]]
-        funcConstruct :: Maybe NativeFunction, -- [[Construct]]
+        funcConstruct :: Maybe NativeCode, -- [[Construct]]
         objPropMap :: Map String PropertyPair
       }
     | Object {
@@ -138,8 +138,8 @@ data Value
     | NativeFunction {
         funcName      :: String,
         funcArity     :: Int,
-        funcNatCode   :: NativeFunction,
-        funcConstruct :: Maybe NativeFunction,
+        funcNatCode   :: NativeCode,
+        funcConstruct :: Maybe NativeCode,
         objPropMap    :: Map String PropertyPair
       }
     | Reference { refBase :: Value, refName :: String }
@@ -204,7 +204,7 @@ showShallow (Object { objName = name }) = "<Object " ++ name ++ ">"
 showShallow (Ref refObj)   = "<Ref " ++ (showShallow $ unsafePerformIO $ readIORef $ refObj) ++ ">"
 showShallow x = show x
 
-type NativeFunction
+type NativeCode
     = [Value] -> Evaluate Value
 
 instance Eq (a -> b) where
@@ -336,7 +336,7 @@ nullNativeFunc = NativeFunction {
         objPropMap    = Map.empty
     }
 
-nativeFunc :: String -> Int -> NativeFunction -> Value
+nativeFunc :: String -> Int -> NativeCode -> Value
 nativeFunc name arity code =
     nullNativeFunc {
         funcName    = name,
@@ -345,7 +345,7 @@ nativeFunc name arity code =
     }
 
 -- 組み込みオブジェクトを作るヘルパー
-nativeFuncPropMap :: [(String, NativeFunction, Int)] -> Map String PropertyPair
+nativeFuncPropMap :: [(String, NativeCode, Int)] -> Map String PropertyPair
 nativeFuncPropMap =
     mkPropMap . map convert
     where convert (name, code, arity) =

@@ -24,13 +24,13 @@ prototypeObject =
     }
 
 -- String()
-function :: NativeFunction
+function :: NativeCode
 function [] = return $ String ""
 
 function (x:_) = liftM String $ toString x
 
 -- new String()
-constructor :: NativeFunction
+constructor :: NativeCode
 constructor args =
     do string <- function args
        return $ nullObject {
@@ -39,7 +39,7 @@ constructor args =
            objValue     = string
        }
 
-toStringMethod :: NativeFunction
+toStringMethod :: NativeCode
 toStringMethod _ =
     do this <- readRef =<< getThis
        case this of
@@ -47,7 +47,7 @@ toStringMethod _ =
             Object { objValue = String _ } -> return this
             _ -> do throw $ ReferenceError $ "String.prototype.toString called on incompatible value"
 
-valueOfMethod :: NativeFunction
+valueOfMethod :: NativeCode
 valueOfMethod _ =
     do this <- readRef =<< getThis
        case this of
@@ -55,7 +55,7 @@ valueOfMethod _ =
             Object { objValue = String _ } -> return this
             _ -> do throw $ ReferenceError $ "String.prototype.valueOf called on incompatible value"
 
-charAt :: NativeFunction
+charAt :: NativeCode
 charAt [] = charAt [Undefined]
 
 charAt (pos:_) =
@@ -65,7 +65,7 @@ charAt (pos:_) =
                      _ | pos < 0 -> String ""
                      String string -> String $ if pos >= length string then "" else [string !! pos]
 
-charCodeAt :: NativeFunction
+charCodeAt :: NativeCode
 charCodeAt [] = charCodeAt [Undefined]
 
 charCodeAt (pos:_) =

@@ -1,6 +1,6 @@
 {-
     JSDate.hs
-    DateƒIƒuƒWƒFƒNƒg
+    Dateã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-9_Date_Objects.html
 -}
 
@@ -21,19 +21,19 @@ prototypeObject =
     }
 
 -- Date()
-function :: NativeFunction
+function :: NativeCode
 function [] =
     do time <- liftAll $ getClockTime
        return $ String $ show time
 
 -- new Date()
-constructor :: NativeFunction
+constructor :: NativeCode
 constructor [] =
     do time <- liftAll $ getClockTime
        return $ nullObject { objClass = "Date", objValue = toValue $ toMillisecs time }
 
 -- Date.prototype.toString
-toStringMethod :: NativeFunction
+toStringMethod :: NativeCode
 toStringMethod _ =
     do this <- readRef =<< getThis
        if objClass this == "Date"
@@ -41,7 +41,7 @@ toStringMethod _ =
           else throw $ TypeError $ "Date.prototype.toString called on incompatible"
 
 -- Date.prototype.valueOf
-valueOf :: NativeFunction
+valueOf :: NativeCode
 valueOf _ =
     do this <- readRef =<< getThis
        if objClass this == "Date"
