@@ -4,11 +4,12 @@
     Haskell内部の型
 -}
 
-module DataTypes (module DataTypes) where
+module DataTypes (module DataTypes, Control.Monad.Trans.liftIO) where
 import Data.Map (Map, assocs)
 import qualified Data.Map as Map
 import Data.IORef
 import System.IO.Unsafe
+import Control.Monad.Trans (liftIO)
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 import List
@@ -30,9 +31,6 @@ class ToValue a where
 
 type Evaluate a
     = ContT Value (StateT Env IO) a
-
-liftAll :: IO a -> Evaluate a
-liftAll = lift . lift
 
 data Env
     = Env { envFrames :: [Frame], envContStack :: [Cont], envFlags :: [Flag] }
@@ -148,6 +146,14 @@ data Value
     | Ref { getRef :: IORef Value }
     | Void
     deriving Eq
+
+setObjProto :: Value -> Value -> Value
+setObjProto proto object@Object { } = object { objPrototype = proto }
+setObjProto _ x = x
+
+setObjValue :: Value -> Value -> Value
+setObjValue value object@Object { } = object { objValue = value }
+setObjValue _ x = x
 
 instance Show Value where
     show Undefined = "undefined"
@@ -286,19 +292,19 @@ makeRef :: Value -> Evaluate Value
 makeRef ref@Ref { } = return ref
 
 makeRef object =
-    do ref <- liftAll $ newIORef object
+    do ref <- liftIO $ newIORef object
        return $ Ref ref
 
 makeIORef :: Value -> Evaluate (IORef Value)
 makeIORef (Ref ref) = return ref
 
 makeIORef object =
-    do ref <- liftAll $ newIORef object
+    do ref <- liftIO $ newIORef object
        return $ ref
 
 readRef :: Value -> Evaluate Value
 readRef (Ref objRef) =
-    do object <- liftAll $ readIORef objRef
+    do object <- liftIO $ readIORef objRef
        readRef object
 
 readRef object = return object

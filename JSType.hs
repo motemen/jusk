@@ -13,6 +13,7 @@ import ParserUtil (runLex)
 import Internal
 import Context
 import Eval
+import PrettyShow
 
 toPrimitive :: Value -> String -> Evaluate Value
 toPrimitive Undefined _ =
@@ -137,7 +138,7 @@ toString (Number (Integer n)) = return $ show n
 toString (Number (Double n))  = return $ show n
 toString (Number NaN)         = return "NaN"
 
-toString (NativeFunction { funcName = name }) =
+toString NativeFunction { funcName = name } =
     return $ "function " ++ name ++ "() { [native code] }"
 
 toString ref@Reference { } =
@@ -145,7 +146,7 @@ toString ref@Reference { } =
        toString object
 
 toString (Ref objRef) =
-    do object <- liftAll $ readIORef objRef
+    do object <- liftIO $ readIORef objRef
        toString object
 
 toString (Exception e) =
@@ -158,9 +159,54 @@ toString object =
             Object { objValue = value } -> toString value
             _ -> toString s
 
+toSource :: Value -> Evaluate String
+toSource Void      = return ""
+toSource Undefined = return "undefined"
+toSource Null      = return "null"
+
+toSource (Boolean False) = return "false"
+toSource (Boolean True)  = return "true"
+
+toSource (String string) = return $ show string
+
+toSource (Number (Integer n)) = return $ show n
+toSource (Number (Double n))  = return $ show n
+toSource (Number NaN)         = return "NaN"
+
+toSource func@Function { } =
+    return $ prettyShow func
+    
+toSource NativeFunction { funcName = name } =
+    return $ "function " ++ name ++ "() { [native code] }"
+
+toSource ref@Reference { } =
+    do object <- getValue ref
+       toSource object
+
+toSource (Ref objRef) =
+    do object <- liftIO $ readIORef objRef
+       toSource object
+
+toSource object = 
+    toString =<< callMethod object "toSource" []
+
 toObject :: Value -> Evaluate Value
 toObject Undefined =
     throw $ TypeError "undefined cannot be converted to object"
 
 toObject Null =
     throw $ TypeError "null cannot be converted to object"
+
+toObject num@(Number _) =
+    do klass <- getVar "Number"
+       object <- makeRef =<< construct klass []
+       liftIO $ modifyIORef (getRef object) (setObjValue num)
+       return object
+
+toObject str@(String _) =
+    do klass <- getVar "String"
+       object <- makeRef =<< construct klass []
+       liftIO $ modifyIORef (getRef object) (setObjValue str)
+       return object
+
+toObject x = return x

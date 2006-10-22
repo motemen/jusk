@@ -309,7 +309,7 @@ call this (callee@Function { funcParam = param, funcBody = body, funcScope = sco
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        withScope scope
                  $ do pushFrame this binding
-                      withCC CReturn (eval body)
+                      withCC CReturn (eval body >> returnCont CReturn Undefined)
     where makeArguments
               = do proto <- prototypeOfVar "Object"
                    return $ nullObject { objPropMap = mkPropMap argProps, objPrototype = proto }
@@ -331,8 +331,11 @@ call _ object _ =
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
-    do method <- getProp object name
-       call object method args
+    do method <- readRef =<< getProp object name
+       if isFunction method || isNativeFunction method
+          then call object method args
+          else do objString <- toString object
+                  throw $ TypeError $ objString ++ "." ++ name ++ " is not a function"
 
 -- 末尾再帰用
 jumpToFunc :: Value -> Value -> [Value] -> Evaluate Value
@@ -372,10 +375,8 @@ construct (func@Function { }) args =
 construct func@NativeFunction { funcConstruct = Just constructor } args =
     do proto <- getProp func "prototype"
        object <- makeRef =<< constructor args
-       liftAll $ modifyIORef (getRef object) $ setProto proto
+       liftIO $ modifyIORef (getRef object) $ setObjProto proto
        return object
-    where setProto proto object@Object { } = object { objPrototype = proto }
-          setProto _ x = x
 
 construct func@NativeFunction { } args =
     do proto <- getProp func "prototype"

@@ -45,8 +45,8 @@ printParseError input err =
 evalProgram :: JavaScriptProgram -> Evaluate Value
 evalProgram program =
     do env <- getEnv
-       liftAll $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
-       liftAll $ when (Debug `elem` (envFlags env)) (mapM_ (ePutStrLn . prettyShow) program)
+       liftIO $ when (Debug `elem` (envFlags env)) (mapM_ ePrint program)
+       liftIO $ when (Debug `elem` (envFlags env)) (mapM_ (ePutStrLn . prettyShow) program)
        if null program || ParseOnly `elem` (envFlags env)
           then return Void
           else liftM last $ mapM eval program
@@ -54,7 +54,7 @@ evalProgram program =
 evalText :: String -> Evaluate Value
 evalText input =
     case parse input of
-         Left err -> liftAll $ printParseError input err
+         Left err -> liftIO $ printParseError input err
          Right program -> evalProgram program
 
 evalFile :: [Flag] -> String -> IO ()
@@ -62,22 +62,22 @@ evalFile flags filename =
     do content <- readFile filename
        run flags $ do e <- callCC $ \cc -> do { pushCont cc CThrow; evalText content; return Void }
                       when (isException e)
-                           (liftAll $ print $ exceptionBody e)
+                           (liftIO $ print $ exceptionBody e)
 
 runRepl' :: Evaluate ()
 runRepl' =
-    do line <- liftAll (putStr "js> " >> hFlush stdout >> getLine)
+    do line <- liftIO (putStr "js> " >> hFlush stdout >> getLine)
        value <- evalWithMoreInput line
        unless (isVoid value || isUndefined value)
               (do string <- toString value
-                  liftAll $ putStrLn string)
+                  liftIO $ putStrLn string)
        runRepl'
        where evalWithMoreInput input =
                  do case parse input of
                          Left err | isErrorAtEnd input err
-                                    -> do line <- liftAll (putStr "**> " >> hFlush stdout >> getLine)
+                                    -> do line <- liftIO (putStr "**> " >> hFlush stdout >> getLine)
                                           evalWithMoreInput $ input ++ "\n" ++ line
-                         Left err | otherwise -> liftAll $ printParseError input err
+                         Left err | otherwise -> liftIO $ printParseError input err
                          Right program -> evalProgram program
 
 runRepl :: [Flag] -> IO ()
@@ -88,7 +88,7 @@ runRepl flags =
                  case e of
                       Void -> runRepl'
                       Exception SysExit -> return ()
-                      Exception e -> do liftAll $ print e
+                      Exception e -> do liftIO $ print e
                                         setupCatchAndRunRepl
                       _ -> return () 
 

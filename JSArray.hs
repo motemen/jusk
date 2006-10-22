@@ -20,6 +20,7 @@ prototypeObject =
     nullObject {
         objPropMap = nativeFuncPropMap [("constructor", constructor,    1),
                                         ("toString",    toStringMethod, 0),
+                                        ("toSource",    toSourceMethod, 0),
                                         ("push",        push,           1),
                                         ("pop",         pop,            0),
                                         ("unshift",     unshift,        1),
@@ -51,7 +52,7 @@ push xs =
     do thisRef <- getThis
        this <- readRef thisRef
        case this of
-            Array _ -> liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (array ++ xs)
+            Array _ -> liftIO $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (array ++ xs)
             _ -> do throw $ NotImplemented $ "Array.prototype.push: " ++ show this
                     return ()
        len <- getProp thisRef "length"
@@ -64,7 +65,7 @@ pop _ =
        this <- readRef thisRef
        case this of
             Array []    -> return Undefined
-            Array array -> do liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (init array)
+            Array array -> do liftIO $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (init array)
                               return $ last array
             _ -> throw $ NotImplemented $ "Array.prototype.pop: " ++ show this
 
@@ -79,7 +80,7 @@ unshift xs =
     do thisRef <- getThis
        this <- readRef thisRef -- Must be a reference
        case this of
-            Array _ -> liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (xs ++ array)
+            Array _ -> liftIO $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (xs ++ array)
             _ -> do throw $ NotImplemented $ "Array.prototype.unshift: " ++ show this
                     return ()
        len <- getProp thisRef "length"
@@ -92,7 +93,7 @@ shift _ =
        this <- readRef thisRef
        case this of
             Array []    -> return Undefined
-            Array array -> do liftAll $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (tail array)
+            Array array -> do liftIO $ modifyIORef (getRef thisRef) $ \(Array array) -> Array (tail array)
                               return $ head array
             _ -> do throw $ NotImplemented $ "Array.prototype.shift: " ++ show this
                     return Void
@@ -101,6 +102,13 @@ shift _ =
 toStringMethod :: NativeCode
 toStringMethod _ = join []
 
+-- Array.prototype.toSource
+toSourceMethod :: NativeCode
+toSourceMethod _ =
+    do this <- readRef =<< getThis
+       case this of
+            Array array -> do srcArray <- mapM (\o -> callMethod o "toSource" [] >>= toString) array
+                              return $ toValue $ "[" ++ (concat $ intersperse "," srcArray) ++ "]"
 -- Array.prototype.concat
 concatMethod :: NativeCode
 concatMethod args =
@@ -119,7 +127,7 @@ concatMethod args =
 join :: NativeCode
 join args =
     do this <- readRef =<< getThis
-       delim <- if null args then liftAll $ return "," else toString $ head args
+       delim <- if null args then liftIO $ return "," else toString $ head args
        case this of
             Array array
                 -> do strs <- mapM toString array

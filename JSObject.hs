@@ -5,22 +5,27 @@
 -}
 
 module JSObject where
-import Data.Map hiding(map)
+import qualified Data.Map as Map hiding(map)
+import List
+import Monad
 
 import DataTypes
 import Context
 import Internal
+import Eval
+import JSType
 
 -- Object.prototype
 prototypeObject :: Value
 prototypeObject =
     nullObject {
         objPropMap = nativeFuncPropMap [("toString", toStringMethod, 0),
-                                        ("valueOf",  valueOf, 0)],
+                                        ("valueOf",  valueOf,        0),
+                                        ("toSource", toSourceMethod, 0)],
         objClass = "Object"
     }
 
--- Object()
+-- Object
 function :: NativeCode
 function [] = create []
 
@@ -33,14 +38,25 @@ toStringMethod _ =
 
 -- Object.prototype.valueOf
 valueOf :: NativeCode
-valueOf _ =
-    do this <- getThis
-       return this
+valueOf _ = getThis
+
+-- Object.prototype.toSource
+toSourceMethod :: NativeCode
+toSourceMethod _ =
+    do this <- toObject =<< readRef =<< getThis
+       strings <- mapM pairToString $ Map.assocs $ Map.filter (notElem DontEnum . propAttr) $ objPropMap this
+       return $ toValue $ "({" ++ strings `joinBy` ", " ++ "})"
+    where pairToString (k, p) =
+              do value <- readRef $ propValue p
+                 if isPrimitive value
+                    then return $ k ++ ": " ++ show value
+                    else liftM ((k ++ ": ") ++) $ toString =<< callMethod value "toSource" []
+          joinBy strings sep = concat $ intersperse sep strings
 
 create :: [(String, Value)] -> Evaluate Value
 create props = 
     return $ nullObject {
-        objPropMap = fromList $ map withNoAttr props,
+        objPropMap = Map.fromList $ map withNoAttr props,
         objPrototype = prototypeObject,
         objClass = "Object"
     }

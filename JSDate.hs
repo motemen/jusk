@@ -23,13 +23,13 @@ prototypeObject =
 -- Date()
 function :: NativeCode
 function [] =
-    do time <- liftAll $ getClockTime
+    do time <- liftIO $ getClockTime
        return $ String $ show time
 
 -- new Date()
 constructor :: NativeCode
 constructor [] =
-    do time <- liftAll $ getClockTime
+    do time <- liftIO $ getClockTime
        return $ nullObject { objClass = "Date", objValue = toValue $ toMillisecs time }
 
 -- Date.prototype.toString
@@ -37,7 +37,7 @@ toStringMethod :: NativeCode
 toStringMethod _ =
     do this <- readRef =<< getThis
        if objClass this == "Date"
-          then liftAll $ liftM (String . calendarTimeToString) (millisecsToCT $ getMillisecs this)
+          then liftIO $ liftM (String . calendarTimeToString) (millisecsToCT $ getMillisecs this)
           else throw $ TypeError $ "Date.prototype.toString called on incompatible"
 
 -- Date.prototype.valueOf

@@ -61,7 +61,7 @@ classOf _ =
 -- プロパティの取得/設定
 -- [[Get]]
 getProp :: Value -> String -> Evaluate Value
-getProp (object@Object { objValue = value }) p | not $ isNull value =
+getProp object@Object { objValue = value } p | not $ isNull value =
     getOwnProp object p
     >>= maybe (prototypeOf object >>= maybeNull (getProp value p)
                                                 (flip getProp p))
@@ -80,7 +80,7 @@ putProp ref@(Ref objRef) p value =
        canPut <- canPut object p
        value <- makeRef value
        when (canPut)
-            (liftAll $ modifyIORef objRef $ insertProp value)
+            (liftIO $ modifyIORef objRef $ insertProp value)
     where insertProp value object@Object { objPropMap = propMap }
               = object { objPropMap = Map.insert p (mkProp value []) propMap }
 
@@ -148,7 +148,7 @@ putValue (Reference baseRef name) value =
        putProp baseRef name value
 
 putValue (Ref ref) value =
-    liftAll $ writeIORef ref value
+    liftIO $ writeIORef ref value
 
 putValue _ _ =
     do throw $ ReferenceError "invalid assignment left-hand side"
@@ -206,14 +206,14 @@ warn :: String -> Evaluate ()
 warn message =
     do env <- getEnv
        if Warn `elem` (envFlags env)
-          then liftAll $ putStrLn $ "warning: " ++ message
+          then liftIO $ putStrLn $ "warning: " ++ message
           else return ()
 
 debug :: String -> Evaluate ()
 debug message =
     do env <- getEnv
        if Debug `elem` (envFlags env)
-          then liftAll $ putStrLn $ "debug: " ++ message
+          then liftIO $ putStrLn $ "debug: " ++ message
           else return ()
 
 getOwnProp :: Value -> String -> Evaluate (Maybe Value)
@@ -221,7 +221,7 @@ getOwnProp object@Object { } p =
     return $ liftM propValue $ Map.lookup p (objPropMap object)
 
 getOwnProp (Ref objRef) p =
-    do object <- liftAll $ readIORef objRef
+    do object <- liftIO $ readIORef objRef
        getOwnProp object p
 
 getOwnProp func@Function { } p =
@@ -265,7 +265,7 @@ getOwnPropAttr (Array _) p =
          Right _ -> return $ Just $ []
 
 getOwnPropAttr (Ref objRef) p =
-    do object <- liftAll $ readIORef objRef
+    do object <- liftIO $ readIORef objRef
        getOwnPropAttr object p
 
 getOwnPropAttr _ _ =

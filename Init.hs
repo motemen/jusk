@@ -27,7 +27,7 @@ nullEnv flags =
 
 setupEnv :: Evaluate ()
 setupEnv =
-    do pushCont (\e -> liftAll $ print e >> return e) CThrow
+    do pushCont (\e -> liftIO $ print e >> return e) CThrow
 
        defineConstructor "Object"   Object.prototypeObject   Object.function   Object.constructor
        defineConstructor "Array"    Array.prototypeObject    Array.function    Array.constructor
@@ -74,25 +74,25 @@ load args =
     liftM last $ mapM loadFile args
     where loadFile file =
               do file <- toString file
-                 content <- liftAll $ readFile file
+                 content <- liftIO $ readFile file
                  case runLex program content of
                       Left err -> throw $ SyntaxError $ showError content err
                       Right program -> liftM last $ mapM eval program
 
 printLn (x:_) =
     do string <- toString x
-       liftAll $ putStrLn string
+       liftIO $ putStrLn string
        return Undefined
 
 printNative (x:_) =
-    do liftAll $ print x
+    do liftIO $ print x
        return Undefined
 
 env _ =
     do env <- getEnv
        proto <- prototypeOfVar "Object"
        object <- makeRef $ nullObject { objPrototype = proto }
-       (object ! "frames" <~) =<< (makeRef =<< (liftAll . liftM Array $ mapM ((setProto proto =<<) . return . frObject) $ tail $ envFrames env))
+       (object ! "frames" <~) =<< makeRef =<< (liftIO . liftM Array $ mapM (setProto proto . frObject) $ tail $ envFrames env)
        (object ! "stack" <~) =<< (makeRef $ Array $ map (String . show) $ tail $ envContStack env)
        return object
     where setProto proto object@Object { } =
