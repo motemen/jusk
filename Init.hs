@@ -15,6 +15,7 @@ import qualified JSArray as Array
 import qualified JSString as String
 import qualified JSFunction as Function
 import qualified JSDate as Date
+import qualified JSRegExp as RegExp
 import Internal
 import Eval
 import Parser
@@ -34,6 +35,7 @@ setupEnv =
        defineConstructor "String"   String.prototypeObject   String.function   String.constructor
        defineConstructor "Function" Function.prototypeObject Function.function Function.constructor
        defineConstructor "Date"     Date.prototypeObject     Date.function     Date.constructor
+       defineConstructor "RegExp"   RegExp.prototypeObject   RegExp.function   RegExp.constructor
 
        defineVar "NaN" (Number NaN)
        defineVar "Infinity" (Number $ Double $ 1 / 0)
@@ -49,15 +51,17 @@ setupEnv =
        where defineConstructor name prototypeObject function construct =
                  do proto <- makeRef
                              =<< if name == "Object"
-                                    then return prototypeObject
+                                    then return prototypeObject { objName = name ++ ".prototype" }
                                     else do objectProto <- prototypeOfVar "Object"
-                                            return $ prototypeObject { objPrototype = objectProto }
-                    constructor <- makeRef nullNativeFunc {
-                        funcName      = name,
-                        funcArity     = 1,
-                        funcNatCode   = function,
-                        funcConstruct = Just construct,
-                        objPropMap    = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])]
+                                            return $ prototypeObject { objName = name ++ ".prototype", objPrototype = objectProto }
+                    constructor <- makeRef nullObject {
+                        objName      = name,
+                        objPropMap   = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])],
+                        objConstruct = Just construct,
+                        objObject    = nullNativeFunc {
+                            funcArity     = 1,
+                            funcNatCode   = function
+                        }
                     }
                     constructor ! "prototype" ! "constructor" <~ constructor
                     defineVar name constructor

@@ -10,10 +10,10 @@ import qualified Data.Map as Map
 import Maybe
 
 import DataTypes
-import PrettyShow
 import Context
 import Eval hiding(callMethod)
 import Internal
+import PrettyShow
 import JSType
 
 -- Function.prototype
@@ -29,15 +29,9 @@ prototypeObject =
 toStringMethod :: NativeCode
 toStringMethod _ =
     do this <- readRef =<< getThis
-       showFunc this
-    where showFunc func@Function { } =
-              return $ toValue $ prettyShow func
-          showFunc func@NativeFunction { } =
-              liftM toValue $ toString func
-          showFunc (Object { objValue = func }) =
-              showFunc func
-          showFunc x =
-              throw $ TypeError $ "Function.prototype.toString: " ++ show x ++ " is not a function"
+       if isFunction this || isNativeFunction this
+          then return $ toValue $ prettyShow this
+          else throw $ TypeError $ "Function.prototype.toString: " ++ show this ++ " is not a function"
 
 -- Function
 function :: NativeCode

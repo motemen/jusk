@@ -21,8 +21,8 @@ instance PrettyShow Statement where
     prettyShow (STVarDef bindings) =
         "var " ++ map showVarBinding bindings `joinBy` "," ++ ";"
 
-    prettyShow (STFuncDef func) =
-        prettyShow func
+    prettyShow (STFuncDef name func) =
+        prettyShow $ nullObject { objName = name, objObject = func }
     
     prettyShow (STEmpty) = ";"
 
@@ -120,6 +120,6 @@ instance PrettyShow Value where
 
     prettyShow (String string) = show string
 
-    prettyShow (Function { funcName = name, funcParam = params, funcBody = body }) =
+    prettyShow (Object { objName = name, objObject = Function { funcParam = params, funcBody = body } }) =
         "function" ++ (if null name then "" else " " ++ name) ++ "(" ++ params `joinBy` "," ++ ") " ++ prettyShow body
 

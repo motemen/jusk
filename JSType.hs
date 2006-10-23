@@ -138,7 +138,7 @@ toString (Number (Integer n)) = return $ show n
 toString (Number (Double n))  = return $ show n
 toString (Number NaN)         = return "NaN"
 
-toString NativeFunction { funcName = name } =
+toString Object { objName = name, objObject = NativeFunction { } } =
     return $ "function " ++ name ++ "() { [native code] }"
 
 toString ref@Reference { } =
@@ -156,8 +156,8 @@ toString object =
     do s <- callMethod object "toString" []
        case s of
             String s -> return s
-            Object { objValue = value } -> toString value
-            _ -> toString s
+            Object { objValue = value } | not (isNull value) -> toString value
+            _ -> return $ show $ TypeError $ show object ++ ".toString did not return string: " ++ show s
 
 toSource :: Value -> Evaluate String
 toSource Void      = return ""
@@ -173,10 +173,10 @@ toSource (Number (Integer n)) = return $ show n
 toSource (Number (Double n))  = return $ show n
 toSource (Number NaN)         = return "NaN"
 
-toSource func@Function { } =
+toSource func@Object { objObject = Function { } } =
     return $ prettyShow func
     
-toSource NativeFunction { funcName = name } =
+toSource Object { objName = name, objObject = NativeFunction { } } =
     return $ "function " ++ name ++ "() { [native code] }"
 
 toSource ref@Reference { } =

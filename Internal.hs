@@ -29,12 +29,6 @@ import ParserUtil (natural,runLex)
 
 -- [[Prototype]]
 prototypeOf :: Value -> Evaluate Value
-prototypeOf (Function { }) =
-    prototypeOfVar "Function"
-
-prototypeOf (NativeFunction { }) =
-    prototypeOfVar "Function"
-
 prototypeOf (Array _) =
     prototypeOfVar "Array" 
 
@@ -68,7 +62,8 @@ getProp object@Object { objValue = value } p | not $ isNull value =
               (lift . return)
 
 getProp object p =
-    getOwnProp object p
+    (debug $ "getProp: " ++ show object ++ " " ++ p)
+    >> getOwnProp object p
     >>= maybe (prototypeOf object >>= maybeNull (lift $ return Undefined)
                                                 (flip getProp p))
               (lift . return)
@@ -83,13 +78,6 @@ putProp ref@(Ref objRef) p value =
             (liftIO $ modifyIORef objRef $ insertProp value)
     where insertProp value object@Object { objPropMap = propMap }
               = object { objPropMap = Map.insert p (mkProp value []) propMap }
-
-          insertProp value func@Function { objPropMap = propMap }
-              = func { objPropMap = Map.insert p (mkProp value []) propMap }
-
-          insertProp value func@NativeFunction { objPropMap = propMap }
-              = func { objPropMap = Map.insert p (mkProp value []) propMap }
-
           insertProp value object
               = nullObject { objPropMap = mkPropMap [(p, value, [])], objValue = object }
 
@@ -223,12 +211,6 @@ getOwnProp object@Object { } p =
 getOwnProp (Ref objRef) p =
     do object <- liftIO $ readIORef objRef
        getOwnProp object p
-
-getOwnProp func@Function { } p =
-    return $ liftM propValue $ Map.lookup p (objPropMap func)
-
-getOwnProp func@NativeFunction { } p =
-    return $ liftM propValue $ Map.lookup p (objPropMap func)
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
 getOwnProp (Array array) "length" =

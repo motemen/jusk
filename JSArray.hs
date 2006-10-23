@@ -29,11 +29,11 @@ prototypeObject =
                                         ("join",        join,           1)]
     }
 
--- Array()
+-- Array
 function :: NativeCode
 function = constructor
 
--- new Array()
+-- new Array
 constructor :: NativeCode
 constructor [Number (Integer n)] =
     return $ Array $ take (fromInteger n) (repeat Undefined)

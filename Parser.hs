@@ -26,6 +26,7 @@ literal = nullLiteral
       <|> booleanLiteral
       <|> numericLiteral
       <|> stringLiteral
+      <|> regularExpressionLiteral
 
 --- Null Literals
 nullLiteral :: Parser Expression
@@ -103,6 +104,38 @@ stringInterpolateSequence =
        expr <- expression AllowIn
        char '}'
        return expr
+
+-- Regular Expression Literals
+regularExpressionLiteral :: Parser Expression
+regularExpressionLiteral =
+    do char '/'
+       pattern <- regularExpressionBody
+       char '/'
+       flags <- regularExpressionFlags
+       whiteSpace
+       return $ RegExpLiteral pattern flags
+
+regularExpressionBody :: Parser String
+regularExpressionBody =
+    do c <- regularExpressionFirstChar
+       cs <- many regularExpressionChar
+       return (c:cs)
+
+regularExpressionFirstChar :: Parser Char
+regularExpressionFirstChar =
+    backSlashSequence <|> noneOf "\n\r\f*/"
+
+regularExpressionChar :: Parser Char
+regularExpressionChar =
+    backSlashSequence <|> noneOf "\n\r\f/"
+    
+backSlashSequence :: Parser Char
+backSlashSequence =
+    char '\\' >> noneOf "\n\r\f"
+
+regularExpressionFlags :: Parser [Char]
+regularExpressionFlags =
+    many $ letter
 -- }}}
 
 -- Expressions {{{
@@ -582,7 +615,7 @@ functionDeclaration =
     do reserved "function"
        name <- identifierString
        function <- functionCommon
-       return $ STFuncDef { funcDefFunc = function { funcName = name } }
+       return $ STFuncDef { funcDefName = name, funcDefFunc = function }
     <?> "function declaration"
 
 functionExpression :: Parser Expression
@@ -590,9 +623,9 @@ functionExpression =
     do reserved "function"
        name <- option "" identifierString
        Function { funcParam = params, funcBody = body } <- functionCommon
-       return $ Literal $ nullFunction { funcName = name, funcParam = params, funcBody = body }
+       return $ Literal $ nullObject { objName = name, objObject = nullFunction { funcParam = params, funcBody = body } }
 
-functionCommon :: Parser Value
+functionCommon :: Parser NativeObject
 functionCommon =
     do params <- parens formalParameterListOpt
        body <- block

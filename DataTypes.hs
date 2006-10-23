@@ -12,6 +12,7 @@ import System.IO.Unsafe
 import Control.Monad.Trans (liftIO)
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
+import Text.Regex
 import List
 
 data Flag
@@ -73,7 +74,7 @@ type VariableBinding
 
 data Statement
     = STVarDef { varDefBindings :: [VariableBinding] }
-    | STFuncDef { funcDefFunc :: Value }
+    | STFuncDef { funcDefName :: String, funcDefFunc :: NativeObject }
     | STEmpty
     | STExpression Expression
     | STBlock [Statement]
@@ -99,6 +100,7 @@ data Expression
     | Literal Value
     | ArrayLiteral [Expression]
     | ObjectLiteral [(Expression, Expression)]
+    | RegExpLiteral String [Char]
     | List [Expression]
     | Operator { opOperator :: String, opArgs :: [Expression] }
     | Let { letLeft :: Expression, letRight :: Expression }
@@ -111,42 +113,50 @@ data Value
     | Number Number
     | String String
     | Array [Value]
-    | Function {
-        funcName      :: String,
-        funcParam     :: Parameters,
-        funcBody      :: Statement,
-        funcScope     :: [Frame],           -- [[Scope]]
-        funcConstruct :: Maybe NativeCode,  -- [[Construct]]
-
-        objPropMap    :: Map String PropertyPair
-      }
     | Object {
         objPropMap   :: Map String PropertyPair,
 
         --  内部プロパティ
-        objPrototype :: Value,  -- [[Prototype]]
-        objClass     :: String, -- [[Class]]
-        objValue     :: Value,  -- [[Value]]
-        objName      :: String
+        objPrototype :: Value,              -- [[Prototype]]
+        objClass     :: String,             -- [[Class]]
+        objValue     :: Value,              -- [[Value]]
+        objConstruct :: Maybe NativeCode,   -- [[Construct]]
+        objName      :: String,
+
+        objObject    :: NativeObject
       }
     | Exception { exceptionBody :: Exception }
---  | RegularExpression
 {-
     内部でのみ使用
 -}
-    | NativeFunction {
-        funcName      :: String,
-        funcArity     :: Int,
-        funcNatCode   :: NativeCode,
-        funcConstruct :: Maybe NativeCode,
-
-        objPropMap    :: Map String PropertyPair
-      }
     | Reference { refBase :: Value, refName :: String }
     | Ref { getRef :: IORef Value }
     | Void
     deriving Eq
 
+data NativeObject
+    = SimpleObject
+    | Function {
+        funcParam     :: Parameters,
+        funcBody      :: Statement,
+        funcScope     :: [Frame]            -- [[Scope]]
+      }
+    | NativeFunction {
+        funcArity     :: Int,
+        funcNatCode   :: NativeCode
+      }
+    | RegExp {
+        regexpRegex   :: Regex,
+        regexpPattern :: String,
+        regexpFlags   :: [Char]
+      }
+
+instance Eq NativeObject where
+    (==) (Function p s f) (Function p' s' f') = p == p' && s == s' && f == f'
+    (==) (NativeFunction { }) (NativeFunction { }) = False
+    (==) (RegExp _ p f) (RegExp _ p' f') = p == p' && f == f'
+    (==) _ _ = False
+    
 setObjProto :: Value -> Value -> Value
 setObjProto proto object@Object { } = object { objPrototype = proto }
 setObjProto _ x = x
@@ -170,14 +180,6 @@ instance Show Value where
 
     show (Array array) = "[" ++ concat ("," `intersperse` map show array) ++ "]"
 
-    show (Function { objPropMap = propMap, funcName = name, funcParam = params, funcBody = body }) =
-        "<Function " ++ (if null name then "" else name ++ " ") ++ show params ++ " " ++ show body ++
-            " {" ++ showMap propMap ++ "}>"
-        where showMap mapData =
-                  concat $ ", " `intersperse` map showPair (assocs mapData)
-              showPair (k, v) =
-                  k ++ ": " ++ show v
-
     show (Object { objPropMap = propMap,
                    objPrototype = prototype,
                    objClass = klass,
@@ -195,17 +197,19 @@ instance Show Value where
 
     show (Exception e) = show e
 
-    show (NativeFunction { funcName = name }) = "<NativeFunction " ++ name ++ ">"
-
     show (Reference baseRef p) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
 
     show (Ref refObj) = "<Ref " ++ (show $ unsafePerformIO $ readIORef refObj) ++ ">"
 
     show Void = "<Void>"
 
-showShallow :: Value -> String
-showShallow (Function { }) = "<Function ...>"
+instance Show NativeObject where
+    show (Function { funcParam = params, funcBody = body }) =
+        "<Function " ++ show params ++ " " ++ show body ++ ">"
+    show (NativeFunction { }) = "<NativeFunction>"
+    show (RegExp { regexpPattern = pattern }) = "<RegExp " ++ pattern ++ ">"
 
+showShallow :: Value -> String
 showShallow (Object { objName = "" })   = "<Object ...>"
 showShallow (Object { objName = name }) = "<Object " ++ name ++ ">"
 
@@ -324,34 +328,32 @@ nullObject = Object {
         objValue      = Null,
         objPrototype  = Null,
         objClass      = "Object",
-        objName       = ""
+        objConstruct  = Nothing,
+        objName       = "",
+        objObject     = SimpleObject
     }
 
-nullFunction :: Value
+nullFunction :: NativeObject
 nullFunction = Function {
-        funcName      = "",
         funcParam     = [],
         funcBody      = STEmpty,
-        funcScope     = [],
-        funcConstruct = Nothing,
-        objPropMap    = Map.empty
+        funcScope     = []
     }
 
-nullNativeFunc :: Value
+nullNativeFunc :: NativeObject
 nullNativeFunc = NativeFunction {
-        funcName      = "",
         funcArity     = 0,
-        funcNatCode   = undefined,
-        funcConstruct = Nothing,
-        objPropMap    = Map.empty
+        funcNatCode   = undefined
     }
 
 nativeFunc :: String -> Int -> NativeCode -> Value
 nativeFunc name arity code =
-    nullNativeFunc {
-        funcName    = name,
-        funcArity   = arity,
-        funcNatCode = code
+    nullObject {
+        objName = name,
+        objObject = nullNativeFunc {
+            funcArity   = arity,
+            funcNatCode = code
+        }
     }
 
 -- 組み込みオブジェクトを作るヘルパー
@@ -385,13 +387,21 @@ isArray :: Value -> Bool
 isArray (Array _) = True
 isArray _ = False
 
-isFunction :: Value -> Bool
-isFunction (Function { }) = True
-isFunction _ = False
-
 isObject :: Value -> Bool
 isObject (Object { }) = True
 isObject _ = False
+
+isFunction :: Value -> Bool
+isFunction (Object { objObject = Function { } }) = True
+isFunction _ = False
+
+isNativeFunction :: Value -> Bool
+isNativeFunction (Object { objObject = NativeFunction { } }) = True
+isNativeFunction _ = False
+
+isRegExp :: Value -> Bool
+isRegExp (Object { objObject = RegExp { } }) = True
+isRegExp _ = False
 
 isException :: Value -> Bool
 isException (Exception _) = True
@@ -400,10 +410,6 @@ isException _ = False
 isVoid :: Value -> Bool
 isVoid Void = True
 isVoid _ = False
-
-isNativeFunction :: Value -> Bool
-isNativeFunction (NativeFunction { }) = True
-isNativeFunction _ = False
 
 isReference :: Value -> Bool
 isReference (Reference { }) = True

@@ -27,9 +27,10 @@ instance Eval Statement where
               bindVariable (name, Just expr) =
                   eval expr >>= getValue >>= defineVar name
 
-    eval (STFuncDef { funcDefFunc = func@Function { funcName = name } }) =
+    eval (STFuncDef { funcDefName = name, funcDefFunc = func }) =
         do frames <- liftM envFrames getEnv
-           defineVar name $ func { funcScope = frames }
+           proto <- prototypeOfVar "Function"
+           defineVar name $ nullObject { objPrototype = proto, objObject = func { funcScope = frames } }
 
     eval STEmpty =
         return Void
@@ -252,6 +253,10 @@ instance Eval Expression where
                 p <- getValue =<< eval e
                 object ! n <~ p
            return object
+
+    eval (RegExpLiteral pattern flags) =
+        do constructor <- getVar "RegExp"
+           construct constructor [String pattern, String flags] >>= makeRef
     
     eval (List []) =
         return Void
@@ -275,9 +280,10 @@ instance Eval Expression where
     eval (Literal num@(Number _)) =
         return $ tidyNumber num
     
-    eval (Literal func@Function { }) =
+    eval (Literal obj@Object { objObject = func@Function { } }) =
         do frames <- liftM envFrames getEnv
-           return $ func { funcScope = frames }
+           proto <- prototypeOfVar "Function"
+           return $ obj { objPrototype = proto, objObject = func { funcScope = frames } }
 
     eval (Literal value) =
         return value
@@ -315,7 +321,7 @@ evalOperator _ _ =
 
 -- [[Call]]
 call :: Value -> Value -> [Value] -> Evaluate Value
-call this (callee@Function { funcParam = param, funcBody = body, funcScope = scope }) args =
+call this callee@Object { objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
     do arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        withScope scope
@@ -327,7 +333,7 @@ call this (callee@Function { funcParam = param, funcBody = body, funcScope = sco
           argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
-call this (NativeFunction { funcNatCode = nativeFunc }) args =
+call this Object { objObject = NativeFunction { funcNatCode = nativeFunc } } args =
     do pushNullFrame this
        value <- nativeFunc args
        popFrame
@@ -350,7 +356,7 @@ callMethod object name args =
 
 -- 末尾再帰用
 jumpToFunc :: Value -> Value -> [Value] -> Evaluate Value
-jumpToFunc this (callee@Function { funcParam = param, funcBody = body, funcScope = scope }) args =
+jumpToFunc this callee@Object { objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
     do arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        modifyScope scope
@@ -362,7 +368,7 @@ jumpToFunc this (callee@Function { funcParam = param, funcBody = body, funcScope
           argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
-jumpToFunc this (NativeFunction { funcNatCode = nativeFunc }) args =
+jumpToFunc this Object { objObject = NativeFunction { funcNatCode = nativeFunc } } args =
     do pushNullFrame this
        value <- nativeFunc args
        popFrame
@@ -377,22 +383,22 @@ jumpToFunc _ object _ =
 
 -- [[Construct]]
 construct :: Value -> [Value] -> Evaluate Value
-construct (func@Function { }) args = 
-    do proto <- getProp func "prototype"
-       object <- makeRef $ nullObject { objPrototype = proto }
-       call object func args
-       return object
-
-construct func@NativeFunction { funcConstruct = Just constructor } args =
-    do proto <- getProp func "prototype"
+construct obj@Object { objConstruct = Just constructor } args =
+    do proto <- getProp obj "prototype"
        object <- makeRef =<< constructor args
        liftIO $ modifyIORef (getRef object) $ setObjProto proto
        return object
 
-construct func@NativeFunction { } args =
-    do proto <- getProp func "prototype"
+construct obj@Object { objObject = Function { } } args = 
+    do proto <- getProp obj "prototype"
        object <- makeRef $ nullObject { objPrototype = proto }
-       call object func args
+       call object obj args
+       return object
+
+construct obj@Object { objObject = NativeFunction { } } args =
+    do proto <- getProp obj "prototype"
+       object <- makeRef $ nullObject { objPrototype = proto }
+       call object obj args
        return object
 
 construct ref@Ref { } args =

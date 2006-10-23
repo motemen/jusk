@@ -114,7 +114,7 @@ parseOpts argv =
 
 printVersion :: IO ()
 printVersion =
-    putStrLn "jusk $Id $Date"
+    putStrLn "jusk $Id$ $Date$"
 
 main :: IO ()
 main =
