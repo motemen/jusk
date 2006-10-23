@@ -9,12 +9,13 @@ import Eval
 import Context
 import Internal
 
-data Operator = Unary   { opName :: String, opUnaryFunc :: (Value -> Evaluate Value) }
-              | Binary  { opName :: String, opBinaryFunc :: (Value -> Value -> Evaluate Value) }
-              | Ternary { opName :: String, opTernaryFunc :: (Value -> Value -> Value -> Evaluate Value) }
+data Operator = Unary   { opName :: String, opUnaryFunc :: Value -> Evaluate Value }
+              | Binary  { opName :: String, opBinaryFunc :: Value -> Value -> Evaluate Value }
 
 operatorsTable :: [Operator]
 operatorsTable = [
+        Unary "typeof" $ typeOf,
+
         Unary  "+"   $ numericUnaryOp id,
         Unary  "-"   $ numericUnaryOp negate,
 
@@ -23,7 +24,7 @@ operatorsTable = [
 
         Binary "*"   $ numericBinaryOp (*),
         Binary "/"   $ numericBinaryOp (/),
-        Binary "%"   $ (.%.),
+        Binary "%"   $ withNoRef2 (.%.),
 
         Binary "+"   $ (.+.),
         Binary "-"   $ numericBinaryOp (-),
@@ -43,26 +44,37 @@ operatorsTable = [
         Binary "=="  $ comparisonOp (==),
         Binary "!="  $ comparisonOp (/=),
 
+        Binary "===" $ (.===.),
+        Binary "!==" $ (.!==.),
+
         Binary "&"   $ bitwiseBinaryOp (.&.),
         Binary "|"   $ bitwiseBinaryOp (.|.),
         Binary "^"   $ bitwiseBinaryOp (xor)
     ]
 
+typeOf :: Value -> Evaluate Value
+typeOf (Reference Null name) =
+    ifM (isBound name)
+        (getVar name >>= readRef >>= typeOf)
+        (return $ String "undefined")
+
+typeOf object =
+    liftM (toValue . typeString) $ readRef =<< getValue object
+
 numericUnaryOp :: (Double -> Double) -> Value -> Evaluate Value
 numericUnaryOp op x = 
-    case x of
-        (Number NaN) -> return x
-        (Number n) -> return $ Number $ Double $ op $ toDouble n
-        _ -> do n <- toNumber x
-                numericUnaryOp op (Number n)
+    do x <- readRef =<< getValue x
+       case x of
+           (Number NaN) -> return x
+           (Number n) -> return $ Number $ Double $ op $ toDouble n
+           _ -> do n <- toNumber x
+                   numericUnaryOp op (Number n)
 
 numericBinaryOp :: (Double -> Double -> Double) -> Value -> Value -> Evaluate Value
 numericBinaryOp op x y = 
-    case (x, y) of
-        (Number n, Number m) -> return $ Number $ maybe NaN Double (applyNumericOp op n m)
-        _ -> do n <- toNumber x
-                m <- toNumber y
-                numericBinaryOp op (Number n) (Number m)
+    do n <- toNumber x
+       m <- toNumber y
+       return $ Number $ maybe NaN Double (applyNumericOp op n m)
 
 bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
 bitwiseBinaryOp op n m =
@@ -116,6 +128,14 @@ bitwiseBinaryOp op n m =
     do n <- toUInt n
        m <- liftM (0x1F .&.) (toUInt m)
        return $ toValue $ foldl clearBit (n `shiftR` m) [31,30..(31-m+1)]
+
+(.===.) :: Value -> Value -> Evaluate Value
+(.===.) x y =
+    liftM toValue $ liftM2 (==) (getValue x) (getValue y)
+
+(.!==.) :: Value -> Value -> Evaluate Value
+(.!==.) x y =
+    liftM toValue $ liftM2 (/=) (getValue x) (getValue y)
 
 inOperator :: Value -> Value -> Evaluate Value
 inOperator name object =

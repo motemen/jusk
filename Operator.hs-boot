@@ -6,7 +6,6 @@ import DataTypes
 
 data Operator = Unary   { opName :: String, opUnaryFunc :: (Value -> Evaluate Value) }
               | Binary  { opName :: String, opBinaryFunc :: (Value -> Value -> Evaluate Value) }
-              | Ternary { opName :: String, opTernaryFunc :: (Value -> Value -> Value -> Evaluate Value) }
 
 operatorsTable :: [Operator]
 

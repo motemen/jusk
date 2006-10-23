@@ -85,7 +85,8 @@ withCC ct proc =
 
 returnCont :: ContType -> Value -> Evaluate Value
 returnCont ct value =
-    do cont <- popCont
+    do debug $ "returnCont: " ++ show ct ++ " " ++ show value
+       cont <- popCont
        if contType cont == ct
           then (contRecv cont) value
           else returnCont ct value
@@ -114,3 +115,17 @@ bindParamArgs params args =
           zipArg param arg = 
               do argRef <- makeRef arg
                  return (param, argRef, [])
+
+warn :: String -> Evaluate ()
+warn message =
+    do env <- getEnv
+       if Warn `elem` (envFlags env)
+          then liftIO $ putStrLn $ "warning: " ++ message
+          else return ()
+
+debug :: String -> Evaluate ()
+debug message =
+    do env <- getEnv
+       if Debug `elem` (envFlags env)
+          then liftIO $ putStrLn $ "debug: " ++ message
+          else return ()

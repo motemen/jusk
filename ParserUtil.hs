@@ -43,14 +43,16 @@ isErrorAtEnd source err =
 showError :: String -> ParseError -> String
 showError source err =
     let pos = errorPos err
-        in unlines
-           $ ["line " ++ show (sourceLine pos) ++ ", column " ++ show (sourceColumn pos) ++ ":",
-              if length (lines source) > sourceLine pos - 1
-                 then lines source !! (sourceLine pos - 1)
-                 else last $ lines source,
-              take (sourceColumn pos - 1) (repeat '.') ++ "^",
-              showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input"
-                                (errorMessages err)]
+        line = sourceLine pos
+        col  = sourceColumn pos
+        in unlines $ [
+               "line " ++ show line ++ ", column " ++ show col ++ ":",
+                if length (lines source) > line - 1
+                   then lines source !! (line - 1)
+                   else last $ lines source,
+                take (col - 1) (repeat '.') ++ "^",
+                showErrorMessages "or" "unknown parse error" "expecting" "unexpected" "end of input" (errorMessages err)
+           ]
 autoInsertSemi :: Parser ()
 autoInsertSemi =
     do st <- getState

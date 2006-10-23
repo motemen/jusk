@@ -75,7 +75,10 @@ defineBuiltInFuncs =
        defineVar "exit"      (nativeFunc "exit"      0 exit)
        
 load args =
-    liftM last $ mapM loadFile args
+    do popFrame
+       value <- liftM last $ mapM loadFile args
+       pushNullScope
+       return value
     where loadFile file =
               do file <- toString file
                  content <- liftIO $ readFile file

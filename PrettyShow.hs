@@ -87,6 +87,8 @@ instance PrettyShow Expression where
 
     prettyShow (ObjectLiteral pairs) = "{" ++ map showObjPair pairs `joinBy` "," ++ "}"
 
+    prettyShow (RegExpLiteral pattern flags) = "/" ++ pattern ++ "/" ++ flags
+
     prettyShow (List exprs) = map prettyShow exprs `joinBy` ","
 
     prettyShow (Operator "()" (callee:args)) = prettyShow callee ++ "(" ++ map prettyShow args `joinBy` "," ++ ")"
@@ -99,6 +101,7 @@ instance PrettyShow Expression where
     prettyShow (Operator "?:" [x, y, z])     = prettyShow x ++ " ? " ++ prettyShow y ++ " : " ++ prettyShow z
 
     prettyShow (Operator "new" (c:args))     = "new " ++ prettyShow c ++ "(" ++ map prettyShow args `joinBy` "," ++ ")"
+    prettyShow (Operator "typeof" [o])       = "typeof " ++ prettyShow o
     prettyShow (Operator op [x, y])          = prettyShow x ++ " " ++ op ++ " " ++ prettyShow y
     prettyShow (Operator ('_':op) [x])       = prettyShow x ++ op
     prettyShow (Operator op [x])             = op ++ prettyShow x
@@ -119,6 +122,9 @@ instance PrettyShow Value where
     prettyShow (Number NaN)         = "NaN"
 
     prettyShow (String string) = show string
+
+    prettyShow (Object { objObject = RegExp { regexpPattern = pattern, regexpFlags = flags } }) =
+        "/" ++ pattern ++ "/" ++ flags
 
     prettyShow (Object { objName = name, objObject = Function { funcParam = params, funcBody = body } }) =
         "function" ++ (if null name then "" else " " ++ name) ++ "(" ++ params `joinBy` "," ++ ") " ++ prettyShow body

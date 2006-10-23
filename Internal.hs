@@ -13,7 +13,7 @@ module Internal (
         isBound,
         defineVar,
         prototypeOfVar,
-        warn, debug,
+        withNoRef, withNoRef2,
         (!), (<~)
     ) where
 import qualified Data.Map as Map
@@ -61,9 +61,14 @@ getProp object@Object { objValue = value } p | not $ isNull value =
                                                 (flip getProp p))
               (lift . return)
 
+getProp ref@(Reference { }) p =
+    flip getProp p =<< getValue ref
+    
+getProp ref@(Ref { }) p =
+    flip getProp p =<< readRef ref
+
 getProp object p =
-    (debug $ "getProp: " ++ show object ++ " " ++ p)
-    >> getOwnProp object p
+    getOwnProp object p
     >>= maybe (prototypeOf object >>= maybeNull (lift $ return Undefined)
                                                 (flip getProp p))
               (lift . return)
@@ -124,7 +129,7 @@ getValue :: Value -> Evaluate Value
 getValue (Reference baseRef name) =
     do base <- readRef baseRef
        if isNull base
-          then throw $ ReferenceError "null has no properties"
+          then getVar name >>= getValue
           else getProp base name >>= getValue                
 
 getValue value =
@@ -176,9 +181,9 @@ getFrameVar [] name =
     throw $ ReferenceError $ name ++ " is not defined"
 
 getFrameVar (f:fs) name =
-    do getOwnProp (frObject f) name
-       >>= maybe (getFrameVar fs name)
-                 (return)
+    getOwnProp (frObject f) name
+    >>= maybe (getFrameVar fs name)
+              (return)
 
 isFrameVarBound :: [Frame] -> String -> Evaluate Bool
 isFrameVarBound [] _ =
@@ -189,20 +194,6 @@ isFrameVarBound (f:fs) name =
        if bound
           then return True
           else isFrameVarBound fs name
-
-warn :: String -> Evaluate ()
-warn message =
-    do env <- getEnv
-       if Warn `elem` (envFlags env)
-          then liftIO $ putStrLn $ "warning: " ++ message
-          else return ()
-
-debug :: String -> Evaluate ()
-debug message =
-    do env <- getEnv
-       if Debug `elem` (envFlags env)
-          then liftIO $ putStrLn $ "debug: " ++ message
-          else return ()
 
 getOwnProp :: Value -> String -> Evaluate (Maybe Value)
 getOwnProp object@Object { } p =
@@ -267,3 +258,11 @@ prototypeOfVar varName =
 
 (<~) :: Value -> Value -> Evaluate ()
 (<~) = putValue
+
+withNoRef :: (Value -> Evaluate a) -> Value -> Evaluate a
+withNoRef f x =
+    f =<< readRef =<< getValue x
+
+withNoRef2 :: (Value -> Value -> Evaluate a) -> Value -> Value -> Evaluate a
+withNoRef2 f x y =
+    uncurry f =<< liftM2 (,) (readRef =<< getValue x) (readRef =<< getValue y)

@@ -63,6 +63,7 @@ stringLiteral = (do charOrExprs <- (stringCharacters '"' <|> stringCharacters '\
               [Literal $ String [c]] ++ xs
           join (Left e) xs =
               [e] ++ xs
+          (+++) [] = Literal $ String ""
           (+++) [x] = x
           (+++) (x:xs) = Operator "+" [x, (+++) xs]
 
@@ -284,8 +285,8 @@ shiftExpression = chainOperator ["<<", ">>", ">>>"] additiveExpression
 
 --- Relational Operators
 relationalExpression :: ParserParameter -> Parser Expression
-relationalExpression AllowIn = chainOperator ["<", ">", "<=", ">=", "is", "as", "in", "instanceof"] shiftExpression
-relationalExpression NoIn    = chainOperator ["<", ">", "<=", ">=", "is", "as", "instanceof"] shiftExpression
+relationalExpression AllowIn = chainOperator ["<", ">", "<=", ">=", "instanceof", "in"] shiftExpression
+relationalExpression NoIn    = chainOperator ["<", ">", "<=", ">=", "instanceof"] shiftExpression
 
 --- Equality Operators
 equalityExpression :: ParserParameter -> Parser Expression
@@ -301,7 +302,7 @@ bitwiseOrExpression  p = chainOperator ["|"] (bitwiseXorExpression p)
 logicalAndExpression, logicalXorExpression, logicalOrExpression :: ParserParameter -> Parser Expression
 logicalAndExpression p = chainOperator ["&&"] (bitwiseOrExpression p)
 logicalXorExpression p = chainOperator ["^^"] (logicalAndExpression p)
-logicalOrExpression  p = chainOperator ["||"] (logicalXorExpression p)
+logicalOrExpression  p = chainOperator ["||"] (logicalAndExpression p)
 
 --- Conditional Operators
 conditionalExpression :: ParserParameter -> Parser Expression

@@ -427,6 +427,15 @@ isPrimitive (Number _)  = True
 isPrimitive (String _)  = True
 isPrimitive _           = False
 
+typeString :: Value -> String
+typeString Undefined    = "undefined"
+typeString Null         = "null"
+typeString (Boolean _)  = "boolean"
+typeString (Number _)   = "number"
+typeString (String _)   = "string"
+typeString (Array _)    = "object"
+typeString (Object { }) = "object"
+
 instance ToValue Int where
     toValue n = Number $ Integer $ toEnum n
 
@@ -441,3 +450,4 @@ instance ToValue String where
 
 instance ToValue Bool where
     toValue b = Boolean b
+

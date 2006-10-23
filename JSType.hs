@@ -31,6 +31,9 @@ toPrimitive num@(Number _) _ =
 toPrimitive string@(String _) _ =
     return string
 
+toPrimitive ref@(Reference { }) preferredType =
+    flip toPrimitive preferredType =<< getValue ref
+
 toPrimitive ref@(Ref _) preferredType =
     flip toPrimitive preferredType =<< readRef ref
 

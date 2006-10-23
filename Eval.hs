@@ -115,7 +115,7 @@ instance Eval Statement where
            mapM evalValue args >>= jumpToFunc this callee 
 
     eval (STReturn expr) =
-        do value <- maybe (return Undefined) eval expr
+        do value <- getValue =<< maybe (return Undefined) eval expr
            returnCont CReturn value
 
     eval (STWith expr st) =
@@ -177,7 +177,7 @@ evalValue x = getValue =<< eval x
 -- Reference (Ref baseRef, p) の形になるまで評価する
 instance Eval Expression where
     eval (Identifier name) =
-        getVar name
+        return $ Reference Null name
     
     eval (Keyword "this") =
         getThis
@@ -221,20 +221,20 @@ instance Eval Expression where
            eval $ Operator "--" [x]
            return value
 
-    eval (Operator "===" [x, y]) =
-        do x <- evalValue x
-           y <- evalValue y
-           return $ toValue $ x == y
+    eval (Operator "&&" [a, b]) =
+        ifM (toBoolean =<< eval a)
+            (eval b)
+            (eval a)
 
-    eval (Operator "!==" [x, y]) =
-        do x <- evalValue x
-           y <- evalValue y
-           return $ toValue $ x /= y
+    eval (Operator "||" [a, b]) =
+        ifM (toBoolean =<< eval a)
+            (eval a)
+            (eval b)
 
     eval (Operator op exprs) =
         if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
            then eval $ Let (head exprs) (Operator (init op) (tail exprs))
-           else do args <- mapM readRef =<< mapM evalValue exprs
+           else do args <- mapM eval exprs
                    evalOperator op args
     
     eval (ArrayLiteral exprs) =
@@ -307,13 +307,6 @@ evalOperator op [x,y] =
           (find (isBinaryOp op) operatorsTable)
     where isBinaryOp op (Binary op' _) = op == op'
           isBinaryOp _ _ = False
-
-evalOperator op [x,y,z] =
-    maybe (throw $ NotImplemented $ "operator " ++ op)
-          (\op -> liftM tidyNumber $ opTernaryFunc op x y z)
-          (find (isTernaryOp op) operatorsTable)
-    where isTernaryOp op (Ternary op' _) = op == op'
-          isTernaryOp _ _ = False
 
 evalOperator _ _ =
     return Undefined
@@ -412,16 +405,14 @@ construct c _ =
 
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
-    -- XXX: hintが提供されないとき: Date オブジェクトなら "String", それ以外は "Number"
     (case hint of
           "String" -> liftM2 mplus (tryMethod "toString") (tryMethod "valueOf")
           "Number" -> liftM2 mplus (tryMethod "valueOf")  (tryMethod "toString")
-          _ -> do klass <- classOf object
-                  if klass == "Date"
-                     then liftM2 mplus (tryMethod "toString") (tryMethod "valueOf")
-                     else liftM2 mplus (tryMethod "valueOf")  (tryMethod "toString"))
-     >>= maybe (throw $ NotImplemented $ "defaultValue: " ++ show object ++ " " ++ hint)
-               (return)
+          _ -> ifM (liftM ("Date" ==) $ classOf object)
+                   (liftM2 mplus (tryMethod "toString") (tryMethod "valueOf"))
+                   (liftM2 mplus (tryMethod "valueOf")  (tryMethod "toString")))
+    >>= maybe (throw $ NotImplemented $ "defaultValue: " ++ show object ++ " " ++ hint)
+              (return)
     where tryMethod :: String -> Evaluate (Maybe Value)
           tryMethod name = 
               do method <- getProp object name
