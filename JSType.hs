@@ -11,7 +11,6 @@ import DataTypes
 import Parser (numericLiteral)
 import ParserUtil (runLex)
 import Internal
-import Context
 import Eval
 import PrettyShow
 
@@ -52,7 +51,10 @@ toBoolean (Number (Integer n)) = return $ n /= 0
 
 toBoolean (String string) = return $ not $ null string
 
-toBoolean _ = return True
+toBoolean (Array _) = return True
+toBoolean Object { } = return True
+
+toBoolean o = getValue o >>= readRef >>= toBoolean
 
 toNumber :: Value -> Evaluate Number
 toNumber Undefined =
@@ -83,7 +85,7 @@ toNumber ref@Reference { } =
     getValue ref >>= toNumber
 
 toNumber o =
-    (throw $ NotImplemented $ "toNumber: " ++ show o) >> return NaN
+    (throw "NotImplemented" $ "toNumber: " ++ show o) >> return NaN
 
 toInteger :: Value -> Evaluate Integer
 toInteger (Number NaN) = return 0
@@ -152,15 +154,13 @@ toString (Ref objRef) =
     do object <- liftIO $ readIORef objRef
        toString object
 
-toString (Exception e) =
-    return $ show e
-
 toString object = 
     do s <- callMethod object "toString" []
        case s of
             String s -> return s
             Object { objValue = value } | not (isNull value) -> toString value
-            _ -> return $ show $ TypeError $ show object ++ ".toString did not return string: " ++ show s
+            _ -> do throw "TypeError" $ show object ++ ".toString did not return string: " ++ show s
+                    return ""
 
 toSource :: Value -> Evaluate String
 toSource Void      = return ""
@@ -195,10 +195,10 @@ toSource object =
 
 toObject :: Value -> Evaluate Value
 toObject Undefined =
-    throw $ TypeError "undefined cannot be converted to object"
+    throw "TypeError" "undefined cannot be converted to object"
 
 toObject Null =
-    throw $ TypeError "null cannot be converted to object"
+    throw "TypeError" "null cannot be converted to object"
 
 toObject num@(Number _) =
     do klass <- getVar "Number"

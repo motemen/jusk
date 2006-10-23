@@ -9,7 +9,7 @@ import Data.Map (Map, assocs)
 import qualified Data.Map as Map
 import Data.IORef
 import System.IO.Unsafe
-import Control.Monad.Trans (liftIO)
+import Control.Monad.Trans
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 import Text.Regex
@@ -21,6 +21,7 @@ data Flag
     | ParseOnly
     | InputFile String
     | EvalStr String
+    | EnterRepl
     | Version
     deriving (Show, Eq)
 
@@ -61,10 +62,10 @@ instance Show Frame where
         "<WithFrame " ++ show object ++ ">"
 
 data Cont
-    = Cont { contType :: ContType, contRecv :: Value -> Evaluate Value }
+    = Cont { contType :: ContType, contRecv :: Value -> Evaluate Value, contScope :: [Frame] }
 
 instance Show Cont where
-    show (Cont { contType = ct }) = show ct
+    show Cont { contType = ct } = show ct
 
 type JavaScriptProgram =
     [Statement]
@@ -125,7 +126,6 @@ data Value
 
         objObject    :: NativeObject
       }
-    | Exception { exceptionBody :: Exception }
 {-
     内部でのみ使用
 -}
@@ -157,6 +157,10 @@ instance Eq NativeObject where
     (==) (RegExp _ p f) (RegExp _ p' f') = p == p' && f == f'
     (==) _ _ = False
     
+setObjName :: String -> Value -> Value
+setObjName name object@Object { } = object { objName = name }
+setObjName _ x = x
+
 setObjProto :: Value -> Value -> Value
 setObjProto proto object@Object { } = object { objPrototype = proto }
 setObjProto _ x = x
@@ -178,7 +182,7 @@ instance Show Value where
 
     show (String string) = show string
 
-    show (Array array) = "[" ++ concat ("," `intersperse` map show array) ++ "]"
+    show (Array array) = "[" ++ concat ("," `intersperse` map showShallow (take 10 array)) ++ "]"
 
     show (Object { objPropMap = propMap,
                    objPrototype = prototype,
@@ -195,8 +199,6 @@ instance Show Value where
               showPair (k, v) =
                   k ++ ": " ++ show v
 
-    show (Exception e) = show e
-
     show (Reference baseRef p) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
 
     show (Ref refObj) = "<Ref " ++ (show $ unsafePerformIO $ readIORef refObj) ++ ">"
@@ -211,7 +213,7 @@ instance Show NativeObject where
 
 showShallow :: Value -> String
 showShallow (Object { objName = "" })   = "<Object ...>"
-showShallow (Object { objName = name }) = "<Object " ++ name ++ ">"
+showShallow (Object { objName = name }) = name
 
 showShallow (Ref refObj)   = "<Ref " ++ (showShallow $ unsafePerformIO $ readIORef $ refObj) ++ ">"
 showShallow x = show x
@@ -262,24 +264,6 @@ type Parameter =
 type RestParameter =
     Maybe Parameter
 
-data Exception
-    = ReferenceError String
-    | TypeError String
-    | SyntaxError String
-{-
-    内部でのみ使用
--}
-    | NotImplemented String
-    | InternalError String
-    | SysExit
-    deriving Eq
-
-instance Show Exception where
-    show (TypeError e)            = "TypeError: " ++ e
-    show (ReferenceError msg)     = "ReferenceError: " ++ msg
-    show (SyntaxError message)    = "SyntaxError:\n" ++ message
-    show (NotImplemented message) = "*** not implemented: " ++ message
-
 data ContType
     = CReturn
     | CThrow
@@ -300,13 +284,6 @@ makeRef ref@Ref { } = return ref
 makeRef object =
     do ref <- liftIO $ newIORef object
        return $ Ref ref
-
-makeIORef :: Value -> Evaluate (IORef Value)
-makeIORef (Ref ref) = return ref
-
-makeIORef object =
-    do ref <- liftIO $ newIORef object
-       return $ ref
 
 readRef :: Value -> Evaluate Value
 readRef (Ref objRef) =
@@ -403,10 +380,6 @@ isRegExp :: Value -> Bool
 isRegExp (Object { objObject = RegExp { } }) = True
 isRegExp _ = False
 
-isException :: Value -> Bool
-isException (Exception _) = True
-isException _ = False
-
 isVoid :: Value -> Bool
 isVoid Void = True
 isVoid _ = False
@@ -435,6 +408,11 @@ typeString (Number _)   = "number"
 typeString (String _)   = "string"
 typeString (Array _)    = "object"
 typeString (Object { }) = "object"
+
+getName :: Value -> String
+getName o | isPrimitive o = show o
+getName Object { objName = name } = name
+getName _ = ""
 
 instance ToValue Int where
     toValue n = Number $ Integer $ toEnum n

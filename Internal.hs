@@ -4,8 +4,8 @@
 -}
 
 module Internal (
-        prototypeOf,
-        classOf,
+        throw,
+        prototypeOf, classOf,
         getProp, putProp, canPut,
         hasProperty,
         getValue, putValue,
@@ -61,10 +61,10 @@ getProp object@Object { objValue = value } p | not $ isNull value =
                                                 (flip getProp p))
               (lift . return)
 
-getProp ref@(Reference { }) p =
+getProp ref@Reference { } p =
     flip getProp p =<< getValue ref
     
-getProp ref@(Ref { }) p =
+getProp ref@Ref { } p =
     flip getProp p =<< readRef ref
 
 getProp object p =
@@ -87,7 +87,7 @@ putProp ref@(Ref objRef) p value =
               = nullObject { objPropMap = mkPropMap [(p, value, [])], objValue = object }
 
 putProp object _ _ =
-    do throw $ ReferenceError $ "cannot put property to " ++ show object
+    do throw "ReferenceError" $ "cannot put property to " ++ show object
        return ()
 
 -- [[CanPut]]
@@ -110,27 +110,32 @@ hasProperty ref@Ref { } p =
     flip hasProperty p =<< readRef ref
 
 hasProperty o p =
-    do throw $ NotImplemented $ "hasProperty: " ++ show o ++ " " ++ show p
+    do throw "NotImplemented" $ "hasProperty: " ++ show o ++ " " ++ show p
        return False
 
 hasOwnProperty :: Value -> String -> Evaluate Bool
-hasOwnProperty (Object { objPropMap = props }) p =
+hasOwnProperty Object { objPropMap = props } p =
     return $ Map.member p props
 
 hasOwnProperty ref@Ref { } p =
     flip hasOwnProperty p =<< readRef ref
 
 hasOwnProperty o p =
-    do throw $ NotImplemented $ "hasOwnProperty: " ++ show o ++ " " ++ show p
+    do throw "NotImplemented" $ "hasOwnProperty: " ++ show o ++ " " ++ show p
        return False
 
 -- Reference の解決
 getValue :: Value -> Evaluate Value
 getValue (Reference baseRef name) =
     do base <- readRef baseRef
-       if isNull base
-          then getVar name >>= getValue
-          else getProp base name >>= getValue                
+       if isVoid base
+          then do var <- makeRef =<< getVar name
+                  liftIO $ modifyIORef (getRef var) $ setObjName name
+                  getValue var
+          else do baseName <- liftM getName $ readRef base
+                  value <- makeRef =<< getProp base name
+                  liftIO $ modifyIORef (getRef value) $ setObjName $ baseName ++ "." ++ name
+                  getValue value
 
 getValue value =
     return value
@@ -144,7 +149,7 @@ putValue (Ref ref) value =
     liftIO $ writeIORef ref value
 
 putValue _ _ =
-    do throw $ ReferenceError "invalid assignment left-hand side"
+    do throw "ReferenceError" "invalid assignment left-hand side"
        return ()
 
 getVar :: String -> Evaluate Value
@@ -178,7 +183,7 @@ defineVar name value =
 
 getFrameVar :: [Frame] -> String -> Evaluate Value
 getFrameVar [] name =
-    throw $ ReferenceError $ name ++ " is not defined"
+    throw "ReferenceError" $ name ++ " is not defined"
 
 getFrameVar (f:fs) name =
     getOwnProp (frObject f) name
@@ -221,7 +226,7 @@ getOwnProp (String _) p =
        getOwnProp proto p
 
 getOwnProp o p =
-    do warn $ show $ NotImplemented $ "getOwnProp: " ++ show o ++ " " ++ p
+    do warn $ "Not implemented: getOwnProp: " ++ show o ++ " " ++ p
        return Nothing
 
 getOwnPropAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
@@ -266,3 +271,14 @@ withNoRef f x =
 withNoRef2 :: (Value -> Value -> Evaluate a) -> Value -> Value -> Evaluate a
 withNoRef2 f x y =
     uncurry f =<< liftM2 (,) (readRef =<< getValue x) (readRef =<< getValue y)
+
+throw :: String -> String -> Evaluate Value
+throw name message =
+    do proto <- flip getProp "prototype" =<< getVar "Error"
+       let error = nullObject {
+           objClass     = "Error",
+           objPropMap   = mkPropMap [("name", String name, []), ("message", String message, [])],
+           objPrototype = proto
+       }
+       returnCont CThrow error
+

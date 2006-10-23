@@ -10,6 +10,7 @@ import System.Time
 
 import DataTypes
 import Context
+import Internal
 
 -- Date.prototype
 prototypeObject :: Value
@@ -38,7 +39,7 @@ toStringMethod _ =
     do this <- readRef =<< getThis
        if objClass this == "Date"
           then liftIO $ liftM (String . calendarTimeToString) (millisecsToCT $ getMillisecs this)
-          else throw $ TypeError $ "Date.prototype.toString called on incompatible"
+          else throw "TypeError" "Date.prototype.toString called on incompatible"
 
 -- Date.prototype.valueOf
 valueOf :: NativeCode
@@ -46,7 +47,7 @@ valueOf _ =
     do this <- readRef =<< getThis
        if objClass this == "Date"
           then return $ toValue $ getMillisecs this
-          else throw $ TypeError $ "Date.prototype.toString called on incompatible"
+          else throw "TypeError" "Date.prototype.toString called on incompatible"
 
 getMillisecs (Object { objValue = Number (Integer millisecs) }) = millisecs
 

@@ -6,7 +6,6 @@ import Data.Bits
 
 import DataTypes
 import Eval
-import Context
 import Internal
 
 data Operator = Unary   { opName :: String, opUnaryFunc :: Value -> Evaluate Value }
@@ -53,7 +52,7 @@ operatorsTable = [
     ]
 
 typeOf :: Value -> Evaluate Value
-typeOf (Reference Null name) =
+typeOf (Reference Void name) =
     ifM (isBound name)
         (getVar name >>= readRef >>= typeOf)
         (return $ String "undefined")
@@ -141,7 +140,7 @@ inOperator :: Value -> Value -> Evaluate Value
 inOperator name object =
     if isPrimitive object
        then do objStr <- toString object
-               throw $ TypeError $ "invalid 'in' operand " ++ objStr
+               throw "TypeError" $ "invalid 'in' operand " ++ objStr
        else do name <- toString name
                hasProp <- hasProperty object name
                return $ Boolean hasProp

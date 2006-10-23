@@ -66,7 +66,8 @@ currentFrame =
 -- Continuation
 pushCont :: (Value -> Evaluate Value) -> ContType -> Evaluate ()
 pushCont c ct =
-    modify $ \env@Env { envContStack = cs } -> env { envContStack = [Cont ct c] ++ cs }
+    do frames <- liftM envFrames getEnv
+       modify $ \env@Env { envContStack = cs } -> env { envContStack = [Cont ct c frames] ++ cs }
 
 popCont :: Evaluate Cont
 popCont =
@@ -88,13 +89,9 @@ returnCont ct value =
     do debug $ "returnCont: " ++ show ct ++ " " ++ show value
        cont <- popCont
        if contType cont == ct
-          then (contRecv cont) value
+          then do modifyScope $ contScope cont
+                  (contRecv cont) value
           else returnCont ct value
-
--- Exception
-throw :: Exception -> Evaluate Value
-throw e =
-    returnCont CThrow (Exception e)
 
 getThis :: Evaluate Value
 getThis =

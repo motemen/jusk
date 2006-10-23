@@ -59,12 +59,24 @@ evalText input =
 evalFile :: [Flag] -> String -> IO ()
 evalFile flags filename =
     do content <- readFile filename
-       run flags $ do e <- callCC $ \cc -> do
-                               pushCont cc CThrow
-                               evalText content
-                               return Void
-                      when (isException e)
-                           (liftIO $ print $ exceptionBody e)
+       run flags $ do
+           e <- withCC CThrow $ do
+                    evalText content
+                    when (EnterRepl `elem` flags)
+                         (setupCatchAndRunRepl)
+                    return Void
+           unless (isVoid e)
+                  (toString e >>= liftIO . ePutStrLn)
+    where setupCatchAndRunRepl =
+              do e <- callCC $ \cc -> do
+                          pushCont cc CThrow
+                          return Void
+                 case e of
+                      Void -> runRepl'
+                      e | objClass e == "Error" -> do
+                              liftIO . ePutStrLn =<< toString e
+                              setupCatchAndRunRepl
+                      _ -> return () 
 
 runRepl' :: Evaluate ()
 runRepl' =
@@ -91,9 +103,9 @@ runRepl flags =
                           return Void
                  case e of
                       Void -> runRepl'
-                      Exception SysExit -> return ()
-                      Exception e -> do liftIO $ print e
-                                        setupCatchAndRunRepl
+                      e | objClass e == "Error" -> do
+                              liftIO . ePutStrLn =<< toString e
+                              setupCatchAndRunRepl
                       _ -> return () 
 
 options :: [OptDescr Flag]
@@ -102,6 +114,7 @@ options = [
         Option ['w'] ["warn"]    (NoArg Warn)        "turn on warnings",
         Option ['p'] ["parse"]   (NoArg ParseOnly)   "only parse text (do not evaluate)",
         Option ['e'] []          (ReqArg EvalStr "") "evaluate string",
+        Option ['r'] ["repl"]    (NoArg EnterRepl)   "enter repl (after reading file)",
         Option ['V'] ["version"] (NoArg Version)     "show version"
     ]
 
@@ -114,7 +127,7 @@ parseOpts argv =
 
 printVersion :: IO ()
 printVersion =
-    putStrLn "jusk $Id$ $Date$"
+    putStrLn "jusk $Id$"
 
 main :: IO ()
 main =

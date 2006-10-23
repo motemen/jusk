@@ -86,10 +86,10 @@ instance Eval Statement where
                        STExpression (Identifier name) ->
                            defineVar name Undefined        -- 既に定義されていてもどのみち上書きする
                        STExpression (List _) ->
-                           throw $ ReferenceError $ "invalid left-hand side of for-in loop"
+                           throw "ReferenceError" "invalid left-hand side of for-in loop"
                        STExpression expr ->
                            eval expr
-                       _ -> throw $ ReferenceError $ "invalid left-hand side of for-in loop"
+                       _ -> throw "ReferenceError" "invalid left-hand side of for-in loop"
            withCC (CBreak Nothing) 
                   (do object <- readRef =<< getValue =<< eval object
                       liftM lastOrVoid $ mapM (evalForInBlock var)
@@ -155,9 +155,9 @@ instance Eval Statement where
            returnCont CThrow value
 
     eval (STTry tryStatement catchClause finallyClause) =
-        do e <- withCC CThrow (eval tryStatement)
+        do e <- withCC CThrow (eval tryStatement >> return Void)
            v1 <- case catchClause of
-                      Just (p, st) | isException e
+                      Just (p, st) | not (isVoid e)
                            -> do binding <- bindParamArgs [p] [e]
                                  pushScope binding
                                  value <- eval st
@@ -177,15 +177,10 @@ evalValue x = getValue =<< eval x
 -- Reference (Ref baseRef, p) の形になるまで評価する
 instance Eval Expression where
     eval (Identifier name) =
-        return $ Reference Null name
+        return $ Reference Void name
     
     eval (Keyword "this") =
         getThis
-    
-    eval (Operator "[]" [Identifier name, p]) =
-        do baseRef <- getVar name
-           prop <- toString =<< getValue =<< eval p
-           return $ Reference baseRef prop
     
     eval (Operator "[]" [base, p]) =
         do objRef <- getValue =<< eval base
@@ -238,11 +233,8 @@ instance Eval Expression where
                    evalOperator op args
     
     eval (ArrayLiteral exprs) =
-        do constructor <- getVar "Array"
-           array <- makeRef =<< construct constructor []
-           items <- mapM evalValue exprs
-           unless (null items)
-                  (callMethod array "push" items >> return ())
+        do items <- mapM evalValue exprs
+           array <- makeRef $ Array items
            return array
     
     eval (ObjectLiteral pairs) =
@@ -265,7 +257,7 @@ instance Eval Expression where
         liftM last $ mapM evalValue exprs
     
     eval (Let (Identifier name) right) =
-        do value <- getValue =<< eval right
+        do value <- readRef =<< getValue =<< eval right
            ifM (isBound name)
                (setVar name value)
                (do warn $ "assignment to undeclared variable " ++ name
@@ -295,14 +287,14 @@ instance Eval Expression where
 -- Operator {{{
 evalOperator :: String -> [Value] -> Evaluate Value
 evalOperator op [x] =
-    maybe (throw $ NotImplemented $ "operator " ++ op)
+    maybe (throw "NotImplemented" $ "operator " ++ op)
           (\op -> liftM tidyNumber $ opUnaryFunc op x)
           (find (isUnaryOp op) operatorsTable)
     where isUnaryOp op (Unary op' _) = op == op'
           isUnaryOp _ _ = False
 
 evalOperator op [x,y] =
-    maybe (throw $ NotImplemented $ "operator " ++ op)
+    maybe (throw "NotImplemented" $ "operator " ++ op)
           (\op -> liftM tidyNumber $ opBinaryFunc op x y)
           (find (isBinaryOp op) operatorsTable)
     where isBinaryOp op (Binary op' _) = op == op'
@@ -314,8 +306,9 @@ evalOperator _ _ =
 
 -- [[Call]]
 call :: Value -> Value -> [Value] -> Evaluate Value
-call this callee@Object { objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
-    do arguments <- makeArguments
+call this callee@Object { objName = name, objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
+    do debug $ "call: " ++ name ++ "(" ++ show args ++ ")"
+       arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        withScope scope
                  $ do pushFrame this binding
@@ -326,8 +319,9 @@ call this callee@Object { objObject = Function { funcParam = param, funcBody = b
           argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
-call this Object { objObject = NativeFunction { funcNatCode = nativeFunc } } args =
-    do pushNullFrame this
+call this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
+    do debug $ "call: " ++ name ++ "(" ++ show args ++ ")"
+       pushNullFrame this
        value <- nativeFunc args
        popFrame
        return value
@@ -337,7 +331,7 @@ call this ref@Ref { } args =
        call this object args
 
 call _ object _ =
-    throw $ TypeError $ show object ++ " is not a function"
+    throw "TypeError" $ show object ++ " is not a function"
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
@@ -345,12 +339,13 @@ callMethod object name args =
        if isFunction method || isNativeFunction method
           then call object method args
           else do objString <- toString object
-                  throw $ TypeError $ objString ++ "." ++ name ++ " is not a function"
+                  throw "TypeError" $ objString ++ "." ++ name ++ " is not a function"
 
 -- 末尾再帰用
 jumpToFunc :: Value -> Value -> [Value] -> Evaluate Value
 jumpToFunc this callee@Object { objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
-    do arguments <- makeArguments
+    do debug $ "jumpToFunc: " ++ objName callee ++ "(" ++ show args ++ ")"
+       arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        modifyScope scope
        pushFrame this binding
@@ -361,8 +356,9 @@ jumpToFunc this callee@Object { objObject = Function { funcParam = param, funcBo
           argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
-jumpToFunc this Object { objObject = NativeFunction { funcNatCode = nativeFunc } } args =
-    do pushNullFrame this
+jumpToFunc this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
+    do debug $ "jumpToFunc: " ++ name ++ "(" ++ show args ++ ")"
+       pushNullFrame this
        value <- nativeFunc args
        popFrame
        return value
@@ -372,7 +368,7 @@ jumpToFunc this ref@Ref { } args =
        jumpToFunc this object args
 
 jumpToFunc _ object _ =
-    throw $ TypeError $ show object ++ " is not a function"
+    throw "TypeError" $ show object ++ " is not a function"
 
 -- [[Construct]]
 construct :: Value -> [Value] -> Evaluate Value
@@ -401,7 +397,7 @@ construct Object { objValue = value } args | not $ isNull value =
     construct value args
 
 construct c _ =
-    throw $ TypeError $ show c ++ " is not a constructor"
+    throw "TypeError" $ show c ++ " is not a constructor"
 
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
@@ -411,7 +407,7 @@ defaultValue object hint =
           _ -> ifM (liftM ("Date" ==) $ classOf object)
                    (liftM2 mplus (tryMethod "toString") (tryMethod "valueOf"))
                    (liftM2 mplus (tryMethod "valueOf")  (tryMethod "toString")))
-    >>= maybe (throw $ NotImplemented $ "defaultValue: " ++ show object ++ " " ++ hint)
+    >>= maybe (throw "NotImplemented" $ "defaultValue: " ++ show object ++ " " ++ hint)
               (return)
     where tryMethod :: String -> Evaluate (Maybe Value)
           tryMethod name = 

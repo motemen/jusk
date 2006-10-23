@@ -11,6 +11,7 @@ import Data.Char
 
 import DataTypes
 import Context
+import Internal
 import JSType
 
 -- String.prototype
@@ -34,7 +35,6 @@ constructor :: NativeCode
 constructor args =
     do string <- function args
        return $ nullObject {
-           objPrototype = prototypeObject,
            objClass     = "String",
            objValue     = string
        }
@@ -45,7 +45,7 @@ toStringMethod _ =
        case this of
             String _ -> return this
             Object { objValue = String _ } -> return this
-            _ -> do throw $ ReferenceError $ "String.prototype.toString called on incompatible value"
+            _ -> throw "ReferenceError" "String.prototype.toString called on incompatible value"
 
 valueOfMethod :: NativeCode
 valueOfMethod _ =
@@ -53,7 +53,7 @@ valueOfMethod _ =
        case this of
             String _ -> return this
             Object { objValue = String _ } -> return this
-            _ -> do throw $ ReferenceError $ "String.prototype.valueOf called on incompatible value"
+            _ -> do throw "ReferenceError" "String.prototype.valueOf called on incompatible value"
 
 charAt :: NativeCode
 charAt [] = charAt [Undefined]

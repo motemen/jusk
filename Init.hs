@@ -16,6 +16,7 @@ import qualified JSString as String
 import qualified JSFunction as Function
 import qualified JSDate as Date
 import qualified JSRegExp as RegExp
+import qualified JSError as Error
 import Internal
 import Eval
 import Parser
@@ -36,6 +37,7 @@ setupEnv =
        defineConstructor "Function" Function.prototypeObject Function.function Function.constructor
        defineConstructor "Date"     Date.prototypeObject     Date.function     Date.constructor
        defineConstructor "RegExp"   RegExp.prototypeObject   RegExp.function   RegExp.constructor
+       defineConstructor "Error"    Error.prototypeObject    Error.function    Error.constructor
 
        defineVar "NaN" (Number NaN)
        defineVar "Infinity" (Number $ Double $ 1 / 0)
@@ -83,7 +85,7 @@ load args =
               do file <- toString file
                  content <- liftIO $ readFile file
                  case runLex program content of
-                      Left err -> throw $ SyntaxError $ showError content err
+                      Left err -> throw "SyntaxError" $ showError content err
                       Right program -> liftM last $ mapM eval program
 
 printLn (x:_) =

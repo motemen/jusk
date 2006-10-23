@@ -10,6 +10,7 @@ import Text.Regex
 import DataTypes
 import Eval
 import Context
+import Internal
 
 -- RegExp.prototype
 prototypeObject :: Value
@@ -42,4 +43,4 @@ toStringMethod _ =
     do this <- readRef =<< getThis
        if isRegExp this
           then return $ toValue $ "/" ++ (regexpPattern $ objObject this) ++ "/" ++ (regexpFlags $ objObject this)
-          else throw $ TypeError $ show this ++ " is not a regexp"
+          else throw "TypeError" $ show this ++ " is not a regexp"

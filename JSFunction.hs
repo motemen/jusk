@@ -31,7 +31,7 @@ toStringMethod _ =
     do this <- readRef =<< getThis
        if isFunction this || isNativeFunction this
           then return $ toValue $ prettyShow this
-          else throw $ TypeError $ "Function.prototype.toString: " ++ show this ++ " is not a function"
+          else throw "TypeError" $ "Function.prototype.toString: " ++ show this ++ " is not a function"
 
 -- Function
 function :: NativeCode
@@ -39,7 +39,7 @@ function args = constructor args
 
 -- new Function
 constructor :: NativeCode
-constructor _ = throw $ NotImplemented $ "Function.prototype.constructor"
+constructor _ = throw "NotImplemented" "Function.prototype.constructor"
 
 -- Function.prototype.call
 callMethod :: NativeCode
@@ -58,7 +58,7 @@ apply (thisArg:argArray:_) =
                 do length <- toUInt $ argArray ! "length"
                    args <- mapM (getProp argArray . show) [0..length-1]
                    call thisArg func args
-            _ -> throw $ TypeError $ "second argument to Function.prototype.apply must be an array"
+            _ -> throw "TypeError" "second argument to Function.prototype.apply must be an array"
 
 isArguments :: Value -> Bool
 isArguments (Object { objPropMap = propMap }) =
