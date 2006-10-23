@@ -29,9 +29,6 @@ import ParserUtil (natural,runLex)
 
 -- [[Prototype]]
 prototypeOf :: Value -> Evaluate Value
-prototypeOf (Array _) =
-    prototypeOfVar "Array" 
-
 prototypeOf ref@Ref { } =
     prototypeOf =<< readRef ref
 
@@ -201,22 +198,9 @@ isFrameVarBound (f:fs) name =
           else isFrameVarBound fs name
 
 getOwnProp :: Value -> String -> Evaluate (Maybe Value)
-getOwnProp object@Object { } p =
-    return $ liftM propValue $ Map.lookup p (objPropMap object)
-
 getOwnProp (Ref objRef) p =
     do object <- liftIO $ readIORef objRef
        getOwnProp object p
-
--- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
-getOwnProp (Array array) "length" =
-    return $ Just $ toValue $ length array
-
-getOwnProp (Array array) p =
-    case (runLex natural p) of
-         Left _  -> do prototype <- prototypeOfVar "Array"
-                       getOwnProp prototype p
-         Right n -> return $ Just $ array !! (fromInteger n)
 
 getOwnProp (String string) "length" =
     return $ Just $ toValue $ length string
@@ -225,26 +209,39 @@ getOwnProp (String _) p =
     do proto <- prototypeOfVar "String"
        getOwnProp proto p
 
+-- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
+getOwnProp (Object { objObject = Array array }) "length" =
+    return $ Just $ toValue $ length array
+
+getOwnProp (Object { objObject = Array array }) p =
+    case (runLex natural p) of
+         Left _  -> do prototype <- prototypeOfVar "Array"
+                       getOwnProp prototype p
+         Right n -> return $ Just $ array !! (fromInteger n)
+
+getOwnProp object@Object { } p =
+    return $ liftM propValue $ Map.lookup p (objPropMap object)
+
 getOwnProp o p =
     do warn $ "Not implemented: getOwnProp: " ++ show o ++ " " ++ p
        return Nothing
 
 getOwnPropAttr :: Value -> String -> Evaluate (Maybe [PropertyAttribute])
-getOwnPropAttr object@Object { } p =
-    return $ liftM propAttr $ Map.lookup p (objPropMap object)
+getOwnPropAttr (Ref objRef) p =
+    do object <- liftIO $ readIORef objRef
+       getOwnPropAttr object p
 
-getOwnPropAttr (Array _) "length" =
+getOwnPropAttr (Object { objObject = Array _ }) "length" =
     return $ Just $ [DontEnum, DontDelete]
 
-getOwnPropAttr (Array _) p =
+getOwnPropAttr (Object { objObject = Array _ }) p =
     case (runLex natural p) of
          Left _  -> do a <- prototypeOfVar "Array"
                        getOwnPropAttr a p
          Right _ -> return $ Just $ []
 
-getOwnPropAttr (Ref objRef) p =
-    do object <- liftIO $ readIORef objRef
-       getOwnPropAttr object p
+getOwnPropAttr object@Object { } p =
+    return $ liftM propAttr $ Map.lookup p (objPropMap object)
 
 getOwnPropAttr _ _ =
     return Nothing

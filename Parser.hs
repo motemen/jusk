@@ -622,7 +622,7 @@ functionDeclaration =
 functionExpression :: Parser Expression
 functionExpression =
     do reserved "function"
-       name <- option "" identifierString
+       name <- option "anonymous" identifierString
        Function { funcParam = params, funcBody = body } <- functionCommon
        return $ Literal $ nullObject { objName = name, objObject = nullFunction { funcParam = params, funcBody = body } }
 

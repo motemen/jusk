@@ -23,9 +23,6 @@ import PrettyShow
 ePutStrLn :: String -> IO ()
 ePutStrLn = hPutStrLn stderr
 
-ePrint :: (Show a) => a -> IO ()
-ePrint = hPrint stderr
-
 run :: [Flag] -> Evaluate a -> IO ()
 run flags thunk =
     do nullEnv <- nullEnv flags
@@ -63,20 +60,22 @@ evalFile flags filename =
            e <- withCC CThrow $ do
                     evalText content
                     when (EnterRepl `elem` flags)
-                         (setupCatchAndRunRepl)
+                         (runReplWithTry)
                     return Void
            unless (isVoid e)
                   (toString e >>= liftIO . ePutStrLn)
-    where setupCatchAndRunRepl =
-              do e <- callCC $ \cc -> do
-                          pushCont cc CThrow
-                          return Void
-                 case e of
-                      Void -> runRepl'
-                      e | objClass e == "Error" -> do
-                              liftIO . ePutStrLn =<< toString e
-                              setupCatchAndRunRepl
-                      _ -> return () 
+
+runReplWithTry :: Evaluate ()
+runReplWithTry =
+    do e <- callCC $ \cc -> do
+                pushCont cc CThrow
+                return Void
+       case e of
+            Void -> runRepl'
+            e | objClass e == "Error" -> do
+                    liftIO . ePutStrLn =<< toString e
+                    runReplWithTry
+            _ -> return () 
 
 runRepl' :: Evaluate ()
 runRepl' =
@@ -96,17 +95,7 @@ runRepl' =
 
 runRepl :: [Flag] -> IO ()
 runRepl flags =
-    run flags setupCatchAndRunRepl
-    where setupCatchAndRunRepl =
-              do e <- callCC $ \cc -> do
-                          pushCont cc CThrow
-                          return Void
-                 case e of
-                      Void -> runRepl'
-                      e | objClass e == "Error" -> do
-                              liftIO . ePutStrLn =<< toString e
-                              setupCatchAndRunRepl
-                      _ -> return () 
+    run flags runReplWithTry
 
 options :: [OptDescr Flag]
 options = [

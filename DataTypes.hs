@@ -9,7 +9,7 @@ import Data.Map (Map, assocs)
 import qualified Data.Map as Map
 import Data.IORef
 import System.IO.Unsafe
-import Control.Monad.Trans
+import Control.Monad.Trans (liftIO)
 import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 import Text.Regex
@@ -113,7 +113,6 @@ data Value
     | Boolean Bool
     | Number Number
     | String String
-    | Array [Value]
     | Object {
         objPropMap   :: Map String PropertyPair,
 
@@ -150,6 +149,7 @@ data NativeObject
         regexpPattern :: String,
         regexpFlags   :: [Char]
       }
+    | Array [Value]
 
 instance Eq NativeObject where
     (==) (Function p s f) (Function p' s' f') = p == p' && s == s' && f == f'
@@ -169,6 +169,10 @@ setObjValue :: Value -> Value -> Value
 setObjValue value object@Object { } = object { objValue = value }
 setObjValue _ x = x
 
+setObjObject :: NativeObject -> Value -> Value
+setObjObject obj object@Object { } = object { objObject = obj }
+setObjObject _ x = x
+
 instance Show Value where
     show Undefined = "undefined"
     show Null      = "null"
@@ -182,18 +186,18 @@ instance Show Value where
 
     show (String string) = show string
 
-    show (Array array) = "[" ++ concat ("," `intersperse` map showShallow (take 10 array)) ++ "]"
-
     show (Object { objPropMap = propMap,
                    objPrototype = prototype,
                    objClass = klass,
                    objValue = value,
-                   objName = name }) =
+                   objName = name,
+                   objObject = obj }) =
         "<Object" ++ (if null name then "" else " " ++ show name) ++
             " {" ++ showMap propMap ++ "}" ++
             " #prototype=" ++ showShallow prototype ++
             " #class=" ++ show klass ++
-            " #value=" ++ show value ++ ">"
+            " #value=" ++ show value ++
+            " #object=" ++ show obj ++ ">"
         where showMap mapData =
                   concat $ ", " `intersperse` map showPair (assocs mapData)
               showPair (k, v) =
@@ -206,10 +210,12 @@ instance Show Value where
     show Void = "<Void>"
 
 instance Show NativeObject where
+    show SimpleObject = "<SimpleObject>"
     show (Function { funcParam = params, funcBody = body }) =
         "<Function " ++ show params ++ " " ++ show body ++ ">"
     show (NativeFunction { }) = "<NativeFunction>"
     show (RegExp { regexpPattern = pattern }) = "<RegExp " ++ pattern ++ ">"
+    show (Array _) = "<Array>"
 
 showShallow :: Value -> String
 showShallow (Object { objName = "" })   = "<Object ...>"
@@ -360,10 +366,6 @@ isString :: Value -> Bool
 isString (String _) = True
 isString _ = False
 
-isArray :: Value -> Bool
-isArray (Array _) = True
-isArray _ = False
-
 isObject :: Value -> Bool
 isObject (Object { }) = True
 isObject _ = False
@@ -379,6 +381,10 @@ isNativeFunction _ = False
 isRegExp :: Value -> Bool
 isRegExp (Object { objObject = RegExp { } }) = True
 isRegExp _ = False
+
+isArray :: Value -> Bool
+isArray (Object { objObject = Array { } }) = True
+isArray _ = False
 
 isVoid :: Value -> Bool
 isVoid Void = True
@@ -406,12 +412,17 @@ typeString Null         = "null"
 typeString (Boolean _)  = "boolean"
 typeString (Number _)   = "number"
 typeString (String _)   = "string"
-typeString (Array _)    = "object"
+typeString (Object { objObject = Function { }})
+                        = "function"
+typeString (Object { objObject = NativeFunction { }})
+                        = "function"
 typeString (Object { }) = "object"
 
 getName :: Value -> String
 getName o | isPrimitive o = show o
 getName Object { objName = name } = name
+getName (Reference base name) = getName base ++ "." ++ name
+getName (Ref ref) = getName $ unsafePerformIO $ readIORef ref
 getName _ = ""
 
 instance ToValue Int where

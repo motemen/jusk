@@ -51,7 +51,6 @@ toBoolean (Number (Integer n)) = return $ n /= 0
 
 toBoolean (String string) = return $ not $ null string
 
-toBoolean (Array _) = return True
 toBoolean Object { } = return True
 
 toBoolean o = getValue o >>= readRef >>= toBoolean

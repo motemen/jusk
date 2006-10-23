@@ -101,8 +101,8 @@ env _ =
     do env <- getEnv
        proto <- prototypeOfVar "Object"
        object <- makeRef $ nullObject { objPrototype = proto }
-       (object ! "frames" <~) =<< makeRef =<< (liftIO . liftM Array $ mapM (setProto proto . frObject) $ tail $ envFrames env)
-       (object ! "stack" <~) =<< (makeRef $ Array $ map (String . show) $ envContStack env)
+       (object ! "frames" <~) =<< makeRef =<< Array.makeArray =<< liftIO (mapM (setProto proto . frObject) $ tail $ envFrames env)
+       (object ! "stack" <~) =<< makeRef =<< Array.makeArray (map (String . show) $ envContStack env)
        return object
     where setProto proto object@Object { } =
               return $ object { objPrototype = proto }

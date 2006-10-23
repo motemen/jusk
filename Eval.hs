@@ -192,7 +192,7 @@ instance Eval Expression where
            let this = case maybeRef of
                            Reference base _ -> base
                            _ -> Null
-           callee <- getValue =<< eval callee
+           callee <- eval callee
            mapM evalValue args >>= call this callee 
     
     eval (Operator "new" (klass:args)) =
@@ -233,8 +233,9 @@ instance Eval Expression where
                    evalOperator op args
     
     eval (ArrayLiteral exprs) =
-        do items <- mapM evalValue exprs
-           array <- makeRef $ Array items
+        do proto <- prototypeOfVar "Array"
+           items <- mapM evalValue exprs
+           array <- makeRef $ nullObject { objPrototype = proto, objObject = Array items }
            return array
     
     eval (ObjectLiteral pairs) =
@@ -326,20 +327,25 @@ call this Object { objName = name, objObject = NativeFunction { funcNatCode = na
        popFrame
        return value
 
+call _ Object { objName = name } _ =
+    throw "TypeError" $ name ++ " is not a function"
+
 call this ref@Ref { } args =
     do object <- readRef ref
        call this object args
 
-call _ object _ =
-    throw "TypeError" $ show object ++ " is not a function"
+call this ref@Reference { } args =
+    do callee <- getValue ref
+       ifM (toBoolean callee)
+           (call this callee args)
+           (throw "TypeError" $ getName ref ++ " is not a function")
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
     do method <- readRef =<< getProp object name
        if isFunction method || isNativeFunction method
           then call object method args
-          else do objString <- toString object
-                  throw "TypeError" $ objString ++ "." ++ name ++ " is not a function"
+          else throw "TypeError" $ getName object ++ "." ++ name ++ " is not a function"
 
 -- 末尾再帰用
 jumpToFunc :: Value -> Value -> [Value] -> Evaluate Value
@@ -368,7 +374,7 @@ jumpToFunc this ref@Ref { } args =
        jumpToFunc this object args
 
 jumpToFunc _ object _ =
-    throw "TypeError" $ show object ++ " is not a function"
+    throw "TypeError" $ getName object ++ " is not a function"
 
 -- [[Construct]]
 construct :: Value -> [Value] -> Evaluate Value
@@ -397,7 +403,7 @@ construct Object { objValue = value } args | not $ isNull value =
     construct value args
 
 construct c _ =
-    throw "TypeError" $ show c ++ " is not a constructor"
+    throw "TypeError" $ getName c ++ " is not a constructor"
 
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =

@@ -31,7 +31,7 @@ toStringMethod _ =
     do this <- readRef =<< getThis
        if isFunction this || isNativeFunction this
           then return $ toValue $ prettyShow this
-          else throw "TypeError" $ "Function.prototype.toString: " ++ show this ++ " is not a function"
+          else throw "TypeError" $ "Function.prototype.toString: " ++ getName this ++ " is not a function"
 
 -- Function
 function :: NativeCode
@@ -53,7 +53,7 @@ apply (thisArg:argArray:_) =
     do func <- getThis
        argArray <- readRef argArray
        case argArray of
-            Array args -> call thisArg func args
+            Object { objObject = Array args } -> call thisArg func args
             _ | isArguments argArray ->
                 do length <- toUInt $ argArray ! "length"
                    args <- mapM (getProp argArray . show) [0..length-1]
