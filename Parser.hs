@@ -225,9 +225,11 @@ parenListExpression = liftM List (parens $ (assignmentExpression AllowIn) `sepBy
 postfixExpression :: Parser Expression
 postfixExpression =
     do e <- leftHandSideExpression
-       e <- option e (do { noLineTerminatorHere; reservedOp "++"; return $ Operator "_++" [e] }
-                      <|> do { noLineTerminatorHere; reservedOp "--"; return $ Operator "_--" [e] }) 
-       return e
+       option e (postfixOp "++" e <|> postfixOp "--" e) 
+    where postfixOp op e =
+              do noLineTerminatorHere
+                 reservedOp op
+                 return $ Operator ('_':op) [e]
 
 --- Unary Operators
 operatorWithArg1 :: String -> Parser Expression -> Parser Expression
@@ -314,14 +316,18 @@ nonAssignmentExpression p =
 --- Assignment Operators
 assignmentExpression :: ParserParameter -> Parser Expression
 assignmentExpression p =
-    try (do l <- leftHandSideExpression
-            (do reservedOp "="
-                r <- assignmentExpression p
-                return $ Let l r)
-             <|> (do op <- compoundAssignment
-                     r <- assignmentExpression p
-                     return $ Let l $ Operator (init op) [l, r]))
-    <|> conditionalExpression p
+    do expr <- conditionalExpression p
+       if isLeftHandSideExpr expr
+          then (do reservedOp "="
+                   right <- assignmentExpression p
+                   return $ Let expr right)
+                <|> (do op <- compoundAssignment
+                        right <- assignmentExpression p
+                        return $ Let expr $ Operator (init op) [expr, right])
+                <|> return expr
+          else return expr
+    where isLeftHandSideExpr (Operator op _) = op `elem` ["[]", "()", "new"]
+          isLeftHandSideExpr _ = True
 
 compoundAssignment, logicalAssignment :: Parser String
 compoundAssignment = choice $ map opString ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
