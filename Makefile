@@ -4,7 +4,7 @@ FLAGS = -fwarn-overlapping-patterns \
         -fwarn-unused-binds \
         -fwarn-unused-imports \
         -fwarn-unused-matches \
-		-O \
+		-O3 \
 		-v
 
 all: main tags

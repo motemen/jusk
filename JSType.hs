@@ -158,7 +158,7 @@ toString object =
        case s of
             String s -> return s
             Object { objValue = value } | not (isNull value) -> toString value
-            _ -> do throw "TypeError" $ show object ++ ".toString did not return string: " ++ show s
+            _ -> do throw "TypeError" $ getName object ++ ".toString did not return string: " ++ show s
                     return ""
 
 toSource :: Value -> Evaluate String

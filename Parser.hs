@@ -193,44 +193,27 @@ objectLiteralPair =
        return (name, expr)
 
 --- Left-Hand-Side Expressions
-memberExpression :: Parser Expression
-memberExpression =
-    do e <- (primaryExpression
-             <|> functionExpression
-             <|> do reserved "new"
-                    e <- memberExpression
-                    Operator _ args <- arguments
-                    return $ Operator "new" (e:args))
-       ps <- many (squares (expression AllowIn)
-                   <|> (do reservedOp "."
-                           liftM (Literal . String) identifierString)
-                   <?> "")
-       return $ foldl (\e p -> Operator "[]" [e,p]) e ps
-
-newExpression :: Parser Expression
-newExpression =
-    try memberExpression
-    <|> (do reserved "new"
-            e <- newExpression 
-            return $ Operator "new" [e])
-
-callExpression :: Parser Expression
-callExpression =
-    do e <- memberExpression
-       a <- arguments
-       ps <- many $ (arguments
-                     <|> (liftM (Operator "[]" . return) $ squares $ expression AllowIn)
-                     <|> (do reservedOp "."
-                             liftM (Operator "[]" . return . Literal . String) identifierString)
-                     <?> "")
-       return $ foldl pushArg (pushArg e a) ps
-
 arguments :: Parser Expression
 arguments =
     liftM (Operator "()") (parens $ (assignmentExpression AllowIn) `sepBy` comma)
 
 leftHandSideExpression :: Parser Expression
-leftHandSideExpression = (try callExpression) <|> newExpression
+leftHandSideExpression =
+    do news <- many $ reserved "new"
+       expr <- do e <- functionExpression <|> primaryExpression
+                  ps <- many propOperator
+                  return $ foldl pushArg e ps
+       args <- many arguments
+       ps <- many $ propOperator <|> arguments
+       let n = min (length news) (length args)
+           newExpr = foldl (flip ($)) expr $ map applyNewOp (take n args)
+           newExpr' = iterate applyNoArgNewOp newExpr !! ((length news - length args) `max` 0)
+       return $ foldl pushArg newExpr' (drop n args ++ ps)
+    where propOperator = (liftM applyBracketOp $ squares $ expression AllowIn)
+                     <|> (reservedOp "." >> liftM (applyBracketOp . Literal . String) identifierString)
+          applyBracketOp e  = Operator "[]" [e]
+          applyNoArgNewOp e = Operator "new" [e]
+          applyNewOp (Operator _ args) e = Operator "new" (e:args)
 
 parenExpression :: Parser Expression
 parenExpression = parens (assignmentExpression AllowIn)
@@ -632,7 +615,7 @@ functionExpression =
 functionCommon :: Parser NativeObject
 functionCommon =
     do params <- parens formalParameterListOpt
-       body <- block
+       body <- liftM STBlock $ braces program
        return $ nullFunction { funcParam = params, funcBody = body }
 
 formalParameterListOpt :: Parser Parameters
