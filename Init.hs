@@ -130,4 +130,5 @@ exit (x:_) =
    returnCont CExit x
 
 break _ =
-    withCC (CContinue Nothing) (runReplWithTry >> return Void)
+    do liftIO $ putStrLn "*** break ***"
+       withCC (CContinue Nothing) (runReplWithTry >> return Void)

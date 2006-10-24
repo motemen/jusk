@@ -52,10 +52,13 @@ operatorsTable = [
     ]
 
 typeOf :: Value -> Evaluate Value
-typeOf (Reference Void name) =
-    ifM (isBound name)
-        (getVar name >>= readRef >>= typeOf)
-        (return $ String "undefined")
+typeOf ref@(Reference object name) =
+    do klass <- classOf object
+       if klass == "Global" || klass == "Activation"
+          then ifM (isBound name)
+                   (getVar name >>= readRef >>= typeOf)
+                   (return $ String "undefined")
+          else liftM (toValue . typeString) $ readRef =<< getValue ref
 
 typeOf object =
     liftM (toValue . typeString) $ readRef =<< getValue object

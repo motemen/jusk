@@ -10,10 +10,12 @@ module Internal (
         hasProperty,
         getValue, putValue,
         getVar, setVar,
+        getVarFrameObject,
         isBound,
         defineVar,
         prototypeOfVar,
         withNoRef, withNoRef2,
+        ifM,
         (!), (<~)
     ) where
 import qualified Data.Map as Map
@@ -74,14 +76,16 @@ getProp object p =
 putProp :: Value -> String -> Value -> Evaluate ()
 putProp ref@(Ref objRef) p value =
     do object <- readRef ref
-       canPut <- canPut object p
-       value <- makeRef value
-       when (canPut)
-            (liftIO $ modifyIORef objRef $ insertProp value)
+       ifM (canPut object p)
+           (liftIO $ modifyIORef objRef $ insertProp value)
+           (return ())
     where insertProp value object@Object { objPropMap = propMap }
               = object { objPropMap = Map.insert p (mkProp value []) propMap }
           insertProp value object
               = nullObject { objPropMap = mkPropMap [(p, value, [])], objValue = object }
+
+putProp Void name value =
+    setVar name value >> return ()
 
 putProp object _ _ =
     do throw "ReferenceError" $ "cannot put property to " ++ show object
@@ -125,14 +129,17 @@ hasOwnProperty o p =
 getValue :: Value -> Evaluate Value
 getValue (Reference baseRef name) =
     do base <- readRef baseRef
-       if isVoid base
-          then do var <- makeRef =<< getVar name
-                  liftIO $ modifyIORef (getRef var) $ setObjName name
-                  getValue var
-          else do baseName <- liftM getName $ readRef base
-                  value <- makeRef =<< getProp base name
-                  liftIO $ modifyIORef (getRef value) $ setObjName $ baseName ++ "." ++ name
-                  getValue value
+       when (objClass base == "Global" || objClass base == "Activation")
+            (ifM (liftM not $ hasOwnProperty base name)
+                 ((throw "ReferenceError" $ name ++ " is not defined") >> return ())
+                 (return ()))
+       baseName <- liftM getName $ readRef base
+       value <- getProp base name
+       when (isRef value)
+            (liftIO $ modifyIORef (getRef value) $ setObjName $ baseName +++ name)
+       getValue value
+    where "" +++ name = name
+          baseName +++ name = baseName ++ "." ++ name
 
 getValue value =
     return value
@@ -140,13 +147,16 @@ getValue value =
 putValue :: Value -> Value -> Evaluate ()
 putValue (Reference baseRef name) value =
     do baseRef <- getValue baseRef
+       value <- ifM (liftM isPrimitive $ readRef value)
+                    (readRef value)
+                    (makeRef value)
        putProp baseRef name value
 
 putValue (Ref ref) value =
     liftIO $ writeIORef ref value
 
-putValue _ _ =
-    do throw "ReferenceError" "invalid assignment left-hand side"
+putValue o v =
+    do throw "ReferenceError" $ "invalid assignment left-hand side" ++ " " ++ show o ++ " " ++ show v
        return ()
 
 getVar :: String -> Evaluate Value
@@ -156,8 +166,8 @@ getVar name =
 
 setVar :: String -> Value -> Evaluate Value
 setVar name value =
-    do var <- getVar name
-       var <~ value
+    do frame <- liftM2 fromMaybe (liftM frObject currentFrame) (getVarFrameObject name)
+       frame ! name <~ value
        return value
 
 isBound :: String -> Evaluate Bool
@@ -173,8 +183,7 @@ defineVar name value =
                                 defineVar name value
                                 modify $ \env@Env { envFrames = frames } -> env { envFrames = frame:frames }
                                 return value
-            _ -> do value <- makeRef value
-                    frameObject <- liftM frObject currentFrame
+            _ -> do frameObject <- liftM frObject currentFrame
                     frameObject ! name <~ value
                     return value
 
@@ -186,6 +195,18 @@ getFrameVar (f:fs) name =
     getOwnProp (frObject f) name
     >>= maybe (getFrameVar fs name)
               (return)
+
+-- 特定の変数が定義されているフレームを取得
+getVarFrameObject :: String -> Evaluate (Maybe Value)
+getVarFrameObject name =
+    do frames <- liftM envFrames getEnv
+       getVarFrameObject' frames name
+    where getVarFrameObject' [] _ =
+              return Nothing
+          getVarFrameObject' (f:fs) name =
+              ifM (hasOwnProperty (frObject f) name)
+                  (return $ Just $ frObject f)
+                  (getVarFrameObject' fs name)
 
 isFrameVarBound :: [Frame] -> String -> Evaluate Bool
 isFrameVarBound [] _ =
@@ -279,3 +300,9 @@ throw name message =
        }
        returnCont CThrow error
 
+ifM :: Monad m => m Bool -> m a -> m a -> m a
+ifM mc mt me =
+    do cond <- mc
+       if cond
+          then mt
+          else me

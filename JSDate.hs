@@ -37,7 +37,8 @@ constructor [] =
 toStringMethod :: NativeCode
 toStringMethod _ =
     do this <- readRef =<< getThis
-       if objClass this == "Date"
+       klass <- classOf this
+       if klass == "Date"
           then liftIO $ liftM (String . calendarTimeToString) (millisecsToCT $ getMillisecs this)
           else throw "TypeError" "Date.prototype.toString called on incompatible"
 
@@ -45,7 +46,8 @@ toStringMethod _ =
 valueOf :: NativeCode
 valueOf _ =
     do this <- readRef =<< getThis
-       if objClass this == "Date"
+       klass <- classOf this
+       if klass == "Date"
           then return $ toValue $ getMillisecs this
           else throw "TypeError" "Date.prototype.toString called on incompatible"
 

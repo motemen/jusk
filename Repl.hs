@@ -12,6 +12,7 @@ import ParserUtil
 import Context
 import Eval
 import DataTypes
+import Internal
 
 runReplWithTry :: Evaluate ()
 runReplWithTry =
@@ -20,10 +21,9 @@ runReplWithTry =
                 return Void
        case e of
             Void -> runRepl'
-            e | objClass e == "Error" -> do
-                    liftIO . ePutStrLn =<< toString e
-                    runReplWithTry
-            _ -> return () 
+            e  -> do liftIO $ ePutStrLn "uncaught exception:"
+                     liftIO . ePutStrLn =<< toString e
+                     runReplWithTry
 
 runRepl' :: Evaluate ()
 runRepl' =

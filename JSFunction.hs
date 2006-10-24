@@ -49,6 +49,9 @@ callMethod (thisArg:args) =
 
 -- Function.prototype.apply
 apply :: NativeCode
+apply [thisArg] =
+    apply [thisArg, Object { objObject = Array [] }]
+
 apply (thisArg:argArray:_) =
     do func <- getThis
        argArray <- readRef argArray

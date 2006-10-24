@@ -157,7 +157,7 @@ toString object =
     do s <- callMethod object "toString" []
        case s of
             String s -> return s
-            Object { objValue = value } | not (isNull value) -> toString value
+            _ | isPrimitive s -> return $ show s
             _ -> do throw "TypeError" $ getName object ++ ".toString did not return string: " ++ show s
                     return ""
 

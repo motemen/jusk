@@ -107,7 +107,7 @@ getGlobal =
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Value
 bindParamArgs params args =
     do binding <- zipWithM zipArg params args
-       return $ nullObject { objPropMap = mkPropMap binding, objClass = "Activation" }
+       makeRef nullObject { objPropMap = mkPropMap binding, objClass = "Activation" }
     where zipArg :: Parameter -> Value -> Evaluate (String, Value, [PropertyAttribute])
           zipArg param arg = 
               do argRef <- makeRef arg

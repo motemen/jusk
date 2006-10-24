@@ -94,22 +94,20 @@ instance Eval Statement where
                       (return lastValue)
 
     eval (STForIn init object block) =
-        do var <- case init of
-                       STVarDef [(name, expr)] ->
-                           defineVar name =<< maybe (return Undefined) eval expr
-                       STExpression (Identifier name) ->
-                           defineVar name Undefined        -- 既に定義されていてもどのみち上書きする
-                       STExpression (List _) ->
-                           throw "ReferenceError" "invalid left-hand side of for-in loop"
-                       STExpression expr ->
-                           eval expr
-                       _ -> throw "ReferenceError" "invalid left-hand side of for-in loop"
+        do name <- case init of
+                        STVarDef [(name, expr)] ->
+                            do defineVar name =<< maybe (return Undefined) eval expr
+                               return name
+                        STExpression (Identifier name) ->
+                            do defineVar name Undefined        -- 既に定義されていてもどのみち上書きする
+                               return name
+                        _ -> throw "ReferenceError" "invalid left-hand side of for-in loop" >> return ""
            withCC (CBreak Nothing) 
                   (do object <- readRef =<< getValue =<< eval object
-                      liftM lastOrVoid $ mapM (evalForInBlock var)
+                      liftM lastOrVoid $ mapM (evalForInBlock name)
                                        $ Map.keys $ Map.filter (notElem DontEnum . propAttr) $ objPropMap object)
-        where evalForInBlock var n =
-                  do putValue var $ String n
+        where evalForInBlock name n =
+                  do setVar name $ String n
                      eval block
               lastOrVoid [] = Void
               lastOrVoid xs = last xs
@@ -165,7 +163,7 @@ instance Eval Statement where
                          (evalSwitchStatement value cs defaultClause lastValue)
 
     eval (STThrow expr) =
-        do value <- eval expr
+        do value <- getValue =<< eval expr
            returnCont CThrow value
 
     eval (STTry tryStatement catchClause finallyClause) =
@@ -191,7 +189,8 @@ evalValue x = getValue =<< eval x
 -- Reference (Ref baseRef, p) の形になるまで評価する
 instance Eval Expression where
     eval (Identifier name) =
-        return $ Reference Void name
+        do frame <- liftM2 fromMaybe (liftM frObject currentFrame) (getVarFrameObject name)
+           return $ Reference frame name
     
     eval (Keyword "this") =
         getThis
@@ -240,6 +239,11 @@ instance Eval Expression where
             (eval a)
             (eval b)
 
+    eval (Operator "?:" [c, t, e]) =
+        ifM (toBoolean =<< eval c)
+            (eval t)
+            (eval e)
+
     eval (Operator op exprs) =
         if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
            then eval $ Let (head exprs) (Operator (init op) (tail exprs))
@@ -271,16 +275,9 @@ instance Eval Expression where
     eval (List exprs) =
         liftM last $ mapM evalValue exprs
     
-    eval (Let (Identifier name) right) =
-        do value <- readRef =<< getValue =<< eval right
-           ifM (isBound name)
-               (setVar name value)
-               (do warn $ "assignment to undeclared variable " ++ name
-                   defineVar name value)
-    
     eval (Let left right) =
         do left <- eval left
-           value <- getValue =<< eval right
+           value <- readRef =<< getValue =<< eval right
            putValue left value
            return value
     
@@ -322,7 +319,7 @@ evalOperator _ _ =
 -- [[Call]]
 call :: Value -> Value -> [Value] -> Evaluate Value
 call this callee@Object { objName = name, objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
-    do debug $ "call: " ++ name ++ "(" ++ show args ++ ")"
+    do debug $ "call: " ++ name
        arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        withScope scope
@@ -335,7 +332,7 @@ call this callee@Object { objName = name, objObject = Function { funcParam = par
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
 call this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
-    do debug $ "call: " ++ name ++ "(" ++ show args ++ ")"
+    do debug $ "call: " ++ name
        pushNullFrame this
        value <- nativeFunc args
        popFrame
@@ -364,7 +361,7 @@ callMethod object name args =
 -- 末尾再帰用
 jumpToFunc :: Value -> Value -> [Value] -> Evaluate Value
 jumpToFunc this callee@Object { objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
-    do debug $ "jumpToFunc: " ++ objName callee ++ "(" ++ show args ++ ")"
+    do debug $ "jumpToFunc: " ++ objName callee
        arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        modifyScope scope
@@ -377,11 +374,11 @@ jumpToFunc this callee@Object { objObject = Function { funcParam = param, funcBo
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
 jumpToFunc this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
-    do debug $ "jumpToFunc: " ++ name ++ "(" ++ show args ++ ")"
+    do debug $ "jumpToFunc: " ++ name
        pushNullFrame this
        value <- nativeFunc args
        popFrame
-       return value
+       returnCont CReturn value
 
 jumpToFunc this ref@Ref { } args =
     do object <- readRef ref
@@ -439,10 +436,3 @@ defaultValue object hint =
                               if isPrimitive result
                                  then return $ Just result
                                  else return Nothing
-
-ifM :: Monad m => m Bool -> m a -> m a -> m a
-ifM mc mt me =
-    do cond <- mc
-       if cond
-          then mt
-          else me
