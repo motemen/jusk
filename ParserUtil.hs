@@ -4,11 +4,12 @@
 -}
 
 module ParserUtil where
+import List
+import IO hiding(try)
 import Text.ParserCombinators.Parsec hiding(Parser)
 import Text.ParserCombinators.Parsec.Pos
 import Text.ParserCombinators.Parsec.Error
 import Data.Char (digitToInt)
-import List
 import Control.Monad
 
 import DataTypes
@@ -21,6 +22,12 @@ data ParserParameter
 data ParserState = ParserState { stSeenLT :: Bool, stLTPos :: SourcePos }
 
 type Parser a = GenParser Char ParserState a
+
+printParseError :: String -> ParseError -> IO Value
+printParseError input err =
+    do hPutStrLn stderr "parse error:"
+       hPutStrLn stderr $ showError input err
+       return Void
 
 initialState :: ParserState
 initialState = ParserState { stSeenLT = False, stLTPos = newPos "" (-1) (-1) }

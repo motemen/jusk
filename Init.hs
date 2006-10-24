@@ -4,6 +4,7 @@
 -}
 
 module Init where
+import Prelude hiding(break)
 import IO
 import Control.Monad.State
 import Data.IORef
@@ -21,6 +22,7 @@ import Internal
 import Eval
 import Parser
 import ParserUtil
+import Repl
 
 nullEnv :: [Flag] -> IO Env
 nullEnv flags =
@@ -73,6 +75,7 @@ defineBuiltInFuncs =
        defineVar "print"     (nativeFunc "print"     1 printLn)
        defineVar "p"         (nativeFunc "p"         1 printNative)
        defineVar "__env__"   (nativeFunc "__env__"   0 env)
+       defineVar "__break__" (nativeFunc "__break__" 0 break)
        defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
        defineVar "exit"      (nativeFunc "exit"      0 exit)
        
@@ -125,3 +128,6 @@ exit [] =
 
 exit (x:_) =
    returnCont CExit x
+
+break _ =
+    withCC (CContinue Nothing) (runReplWithTry >> return Void)

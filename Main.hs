@@ -5,23 +5,20 @@
 -}
 
 module Main where
+import IO
+import List
 import System.Environment hiding(getEnv)
 import System.Console.GetOpt
-import IO
 import Control.Monad.State
 import Control.Monad.Cont
-import List
 
 import Parser
 import ParserUtil
 import DataTypes 
 import Context
 import Eval
+import Repl
 import Init
-import PrettyShow
-
-ePutStrLn :: String -> IO ()
-ePutStrLn = hPutStrLn stderr
 
 run :: [Flag] -> Evaluate a -> IO ()
 run flags thunk =
@@ -29,23 +26,9 @@ run flags thunk =
        (withCC CExit $ setupEnv >> thunk >> return Void) `runContT` (const $ return Void) `evalStateT` nullEnv
        return ()
 
-parse :: String -> Either ParseError JavaScriptProgram
-parse = runLex program
-
-printParseError :: String -> ParseError -> IO Value
-printParseError input err =
-    do ePutStrLn "parse error:"
-       ePutStrLn $ showError input err
-       return Void
-
-evalProgram :: JavaScriptProgram -> Evaluate Value
-evalProgram program =
-    do env <- getEnv
-       if null program || ParseOnly `elem` (envFlags env)
-          then return Void
-          else if (Debug `elem` (envFlags env))
-                  then liftM last $ mapM (\e -> do { liftIO $ ePutStrLn $ prettyShow e; eval e }) program
-                  else liftM last $ mapM eval program
+runRepl :: [Flag] -> IO ()
+runRepl flags =
+    run flags runReplWithTry
 
 evalText :: String -> Evaluate Value
 evalText input =
@@ -64,38 +47,6 @@ evalFile flags filename =
                     return Void
            unless (isVoid e)
                   (toString e >>= liftIO . ePutStrLn)
-
-runReplWithTry :: Evaluate ()
-runReplWithTry =
-    do e <- callCC $ \cc -> do
-                pushCont cc CThrow
-                return Void
-       case e of
-            Void -> runRepl'
-            e | objClass e == "Error" -> do
-                    liftIO . ePutStrLn =<< toString e
-                    runReplWithTry
-            _ -> return () 
-
-runRepl' :: Evaluate ()
-runRepl' =
-    do line <- liftIO (putStr "js> " >> hFlush stdout >> getLine)
-       value <- evalWithMoreInput line
-       unless (isVoid value || isUndefined value)
-              (do string <- toString value
-                  liftIO $ putStrLn string)
-       runRepl'
-       where evalWithMoreInput input =
-                 do case parse input of
-                         Left err | isErrorAtEnd input err
-                                    -> do line <- liftIO (putStr "**> " >> hFlush stdout >> getLine)
-                                          evalWithMoreInput $ input ++ "\n" ++ line
-                         Left err | otherwise -> liftIO $ printParseError input err
-                         Right program -> evalProgram program
-
-runRepl :: [Flag] -> IO ()
-runRepl flags =
-    run flags runReplWithTry
 
 options :: [OptDescr Flag]
 options = [
@@ -116,7 +67,7 @@ parseOpts argv =
 
 printVersion :: IO ()
 printVersion =
-    putStrLn "jusk $Id$"
+    putStrLn $ unwords $ words "jusk $Id$" \\ ["$Id:", "Main.hs", "motemen", "$"]
 
 main :: IO ()
 main =

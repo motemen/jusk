@@ -6,10 +6,11 @@
 -}
 
 module Eval (module Eval, module JSType) where
-import qualified Data.Map as Map
-import Data.IORef
+import IO
 import List
 import Maybe
+import qualified Data.Map as Map
+import Data.IORef
 import Control.Monad.Cont hiding(Cont)
 
 import DataTypes
@@ -17,6 +18,19 @@ import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
 import Internal
 import Context
+import PrettyShow
+
+ePutStrLn :: String -> IO ()
+ePutStrLn = hPutStrLn stderr
+
+evalProgram :: JavaScriptProgram -> Evaluate Value
+evalProgram program =
+    do env <- getEnv
+       if null program || ParseOnly `elem` (envFlags env)
+          then return Void
+          else if (Debug `elem` (envFlags env))
+                  then liftM last $ mapM (\e -> do { liftIO $ ePutStrLn $ prettyShow e; eval e }) program
+                  else liftM last $ mapM eval program
 
 instance Eval Statement where
     eval (STVarDef bindings) =

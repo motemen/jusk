@@ -14,6 +14,9 @@ import Data.Char (isDigit,digitToInt)
 import DataTypes
 import ParserUtil
 
+parse :: String -> Either ParseError JavaScriptProgram
+parse = runLex program
+
 -- Literals {{{
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/7_Lexical_Conventions.html
 --- Identifiers
