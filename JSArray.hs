@@ -26,6 +26,7 @@ prototypeObject =
                                         ("unshift",     unshift,        1),
                                         ("shift",       shift,          0),
                                         ("slice",       slice,          2),
+                                        ("splice",      splice,         2),
                                         ("concat",      concatMethod,   1),
                                         ("join",        join,           1)]
     }
@@ -120,6 +121,29 @@ slice thisRef (start:end:_) =
             _ -> do throw "NotImplemented" $ "Array.prototype.slice: " ++ show this
                     return Void
     where normalizePos pos length =
+              do pos <- toInt pos
+                 if pos < 0
+                    then return $ max (pos + length) 0
+                    else return $ min pos length
+
+-- Array.prototype.splice
+splice :: NativeCode
+splice thisRef (start:count:items) =
+    do this <- readRef thisRef
+       length <- toUInt =<< getProp this "length"
+       start <- normalizePos start length
+       count <- toInt count
+       let c = min (max count 0) (length - start)
+       case this of
+            object@Object { objObject = Array array } ->
+                do liftIO $ writeIORef (getRef thisRef)
+                          $ object { objObject = Array $ replace array start c items }
+                   makeRef =<< (makeArray $ take c $ drop start array)
+            _ -> do throw "NotImplemented" $ "Array.prototype.splice: " ++ show this
+                    return Void
+    where replace array start count items =
+              take start array ++ items ++ drop (start + count) array
+          normalizePos pos length =
               do pos <- toInt pos
                  if pos < 0
                     then return $ max (pos + length) 0
