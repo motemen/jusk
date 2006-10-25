@@ -22,10 +22,14 @@ bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
 (.~.) :: Value -> Evaluate Value
 
 (.>>.) :: Value -> Value -> Evaluate Value
-
 (.<<.) :: Value -> Value -> Evaluate Value
-
 (.>>>.) :: Value -> Value -> Evaluate Value
+
+(.==.) :: Value -> Value -> Evaluate Value
+(.!=.) :: Value -> Value -> Evaluate Value
+
+(.===.) :: Value -> Value -> Evaluate Value
+(.!==.) :: Value -> Value -> Evaluate Value
 
 instanceofOperator :: Value -> Value -> Evaluate Value
 

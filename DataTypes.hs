@@ -209,6 +209,18 @@ instance Show Value where
 
     show Void = "<Void>"
 
+{-
+instance Eq Value where
+    Undefined == Undefined = True
+    Null == Null           = True
+    Undefined == Null      = True
+    Null == Undefined      = True
+
+    (Number n) == (Number m)   = n == m
+    (String s) == (String t)   = s == t
+    (Boolean a) == (Boolean b) = a == b
+-}
+
 instance Show NativeObject where
     show SimpleObject = "<SimpleObject>"
     show (Function { funcParam = params, funcBody = body }) =
@@ -234,7 +246,15 @@ data Number
     = Integer Integer
     | Double Double
     | NaN
-    deriving (Show, Eq)
+    deriving Show
+
+instance Eq Number where
+    NaN == _ = False
+    _ == NaN = False
+    (Integer n) == (Integer m) = n == m
+    (Double n) == (Double m) = n == m
+    (Integer n) == (Double m) = (toEnum $ fromEnum n) == m
+    (Double n) == (Integer m) = n == (toEnum $ fromEnum m)
 
 data PropertyPair
     = PropertyPair { propValue :: Value, propAttr :: [PropertyAttribute] }
@@ -417,6 +437,8 @@ typeString (Object { objObject = Function { }})
 typeString (Object { objObject = NativeFunction { }})
                         = "function"
 typeString (Object { }) = "object"
+typeString (Ref { })    = "ref"
+typeString (Reference { }) = "reference"
 
 getName :: Value -> String
 getName o | isPrimitive o = show o

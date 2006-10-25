@@ -39,8 +39,8 @@ operatorsTable = [
         Binary "instanceof" $ instanceofOperator,
         Binary "in"  $ inOperator,
 
-        Binary "=="  $ comparisonOp (==),
-        Binary "!="  $ comparisonOp (/=),
+        Binary "=="  $ (.==.),
+        Binary "!="  $ (.!=.),
 
         Binary "===" $ (.===.),
         Binary "!==" $ (.!==.),
@@ -130,24 +130,45 @@ bitwiseBinaryOp op n m =
        m <- liftM (0x1F .&.) (toUInt m)
        return $ toValue $ foldl clearBit (n `shiftR` m) [31,30..(31-m+1)]
 
+(.==.) :: Value -> Value -> Evaluate Value
+(.==.) x y =
+    do x <- getValue x; y <- getValue y
+       x' <- readRef x; y' <- readRef y
+       case (x', y') of
+            (Undefined, Null) -> return $ Boolean True
+            (Null, Undefined) -> return $ Boolean True
+            _ | isPrimitive x' && isPrimitive y' ->
+                return $ Boolean $ x' == y'
+            _ -> comparisonOp (==) x y
+
+(.!=.) :: Value -> Value -> Evaluate Value
+(.!=.) x y = liftM not' $ x .==. y
+    where not' (Boolean b) = Boolean (not b)
+
 (.===.) :: Value -> Value -> Evaluate Value
 (.===.) x y =
-    liftM toValue $ liftM2 (==) (getValue x) (getValue y)
+    do x <- getValue x; y <- getValue y
+       x' <- readRef x; y' <- readRef y
+       if isPrimitive x' || isPrimitive y'
+          then return $ toValue $ x' == y'
+          else return $ toValue $ x == y
 
 (.!==.) :: Value -> Value -> Evaluate Value
-(.!==.) x y =
-    liftM toValue $ liftM2 (/=) (getValue x) (getValue y)
+(.!==.) x y = liftM not' $ x .===. y
+    where not' (Boolean b) = Boolean (not b)
 
 instanceofOperator :: Value -> Value -> Evaluate Value
 instanceofOperator value klass =
-    do klassProto <- getProp klass "prototype"
-       isProtoEq value klassProto
-    where isProtoEq value klassProto =
+    do value <- getValue value
+       klass <- getValue klass
+       klassProto <- getProp klass "prototype"
+       liftM toValue $ liftM2 (||) (isProtoEq value klass) (isProtoEq value klassProto)
+    where isProtoEq value obj =
               do proto <- prototypeOf value
                  case proto of
-                      Null -> return $ Boolean False
-                      _ | proto == klassProto -> return $ Boolean True
-                      _ -> isProtoEq proto klassProto
+                      Null -> return False
+                      _ | proto == obj -> return True
+                      _ -> isProtoEq proto obj
 
 inOperator :: Value -> Value -> Evaluate Value
 inOperator name object =
