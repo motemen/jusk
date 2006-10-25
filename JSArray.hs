@@ -5,6 +5,7 @@
 -}
 
 module JSArray where
+import Prelude hiding(toInteger)
 import Monad hiding(join)
 import List(intersperse)
 import Data.IORef
@@ -24,6 +25,7 @@ prototypeObject =
                                         ("pop",         pop,            0),
                                         ("unshift",     unshift,        1),
                                         ("shift",       shift,          0),
+                                        ("slice",       slice,          2),
                                         ("concat",      concatMethod,   1),
                                         ("join",        join,           1)]
     }
@@ -55,7 +57,8 @@ push this [] =
 push thisRef xs =
     do this <- readRef thisRef
        case this of
-            Object { objObject = Array array } -> liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ array ++ xs)
+            Object { objObject = Array array } ->
+                liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ array ++ xs)
             _ -> do throw "NotImplemented" $ "Array.prototype.push: " ++ show this
                     return ()
        len <- getProp thisRef "length"
@@ -66,10 +69,10 @@ pop :: NativeCode
 pop thisRef _ =
     do this <- readRef thisRef
        case this of
-            Object { objObject = Array [] }    -> return Undefined
-            Object { objObject = Array array }
-                -> do liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ init array)
-                      return $ last array
+            Object { objObject = Array [] } -> return Undefined
+            Object { objObject = Array array } ->
+                do liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ init array)
+                   return $ last array
             _ -> throw "NotImplemented" $ "Array.prototype.pop: " ++ show this
 
 -- Array.prototype.unshift
@@ -81,7 +84,8 @@ unshift this [] =
 unshift thisRef xs =
     do this <- readRef thisRef
        case this of
-            Object { objObject = Array array } -> liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ xs ++ array)
+            Object { objObject = Array array } ->
+                liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ xs ++ array)
             _ -> do throw "NotImplemented" $ "Array.prototype.unshift: " ++ show this
                     return ()
        len <- getProp thisRef "length"
@@ -98,6 +102,28 @@ shift thisRef _ =
                       return $ head array
             _ -> do throw "NotImplemented" $ "Array.prototype.shift: " ++ show this
                     return Void
+
+-- Array.prototype.slice
+slice :: NativeCode
+slice this [] = slice this [Number $ Integer 0, Undefined]
+
+slice this [start] = slice this [start, Undefined]
+
+slice thisRef (start:end:_) =
+    do this <- readRef thisRef
+       length <- toUInt =<< getProp this "length"
+       start <- normalizePos start length
+       end <- if isUndefined end then return length else normalizePos end length
+       case this of
+            object@Object { objObject = Array array } ->
+                makeRef object { objObject = Array $ drop start $ take end array }
+            _ -> do throw "NotImplemented" $ "Array.prototype.slice: " ++ show this
+                    return Void
+    where normalizePos pos length =
+              do pos <- toInt pos
+                 if pos < 0
+                    then return $ max (pos + length) 0
+                    else return $ min pos length
 
 -- Array.prototype.toString
 toStringMethod :: NativeCode
@@ -116,9 +142,9 @@ concatMethod :: NativeCode
 concatMethod this args =
     do this <- readRef this
        case this of
-            Object { objObject = Array array }
-                -> do args <- mapM readRef args
-                      makeRef =<< makeArray (concatArgs array args)
+            Object { objObject = Array array } ->
+                do args <- mapM readRef args
+                   makeRef =<< makeArray (concatArgs array args)
     where concatArgs array [] =
               array
           concatArgs array ((Object { objObject = Array array' }):xs) =
@@ -132,6 +158,6 @@ join this args =
     do this <- readRef this
        delim <- if null args then liftIO $ return "," else toString $ head args
        case this of
-            Object { objObject = Array array }
-                -> do strs <- mapM toString array
-                      return $ toValue $ concat $ intersperse delim strs
+            Object { objObject = Array array } ->
+                do strs <- mapM toString array
+                   return $ toValue $ concat $ intersperse delim strs

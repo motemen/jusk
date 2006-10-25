@@ -44,7 +44,12 @@ instance Eval Statement where
     eval (STFuncDef { funcDefName = name, funcDefFunc = func }) =
         do frames <- liftM envFrames getEnv
            proto <- prototypeOfVar "Function"
-           defineVar name $ nullObject { objPrototype = proto, objObject = func { funcScope = frames } }
+           protoObj <- makeNullObject
+           defineVar name $ nullObject {
+                   objPropMap = mkPropMap [("prototype", protoObj, [])],
+                   objPrototype = proto,
+                   objObject = func { funcScope = frames }
+               }
 
     eval STEmpty =
         return Void
@@ -104,13 +109,17 @@ instance Eval Statement where
                         _ -> throw "ReferenceError" "invalid left-hand side of for-in loop" >> return ""
            withCC (CBreak Nothing) 
                   (do object <- readRef =<< getValue =<< eval object
-                      liftM lastOrVoid $ mapM (evalForInBlock name)
-                                       $ Map.keys $ Map.filter (notElem DontEnum . propAttr) $ objPropMap object)
-        where evalForInBlock name n =
-                  do setVar name $ String n
+                      evalForInForObj name object)
+        where evalForInForObj varName Object { objPropMap = props, objPrototype = proto } =
+                  do forM (propToEnum props)
+                          (evalForInBlock varName)
+                     readRef proto >>= evalForInForObj varName
+              evalForInForObj _ _ =
+                  return Void
+              evalForInBlock varName n =
+                  do setVar varName $ String n
                      eval block
-              lastOrVoid [] = Void
-              lastOrVoid xs = last xs
+              propToEnum = Map.keys . Map.filter (notElem DontEnum . propAttr)
 
     eval (STContinue label) =
         returnCont (CContinue label) Void
@@ -277,7 +286,8 @@ instance Eval Expression where
     
     eval (Let left right) =
         do left <- eval left
-           value <- readRef =<< getValue =<< eval right
+--         value <- readRef =<< getValue =<< eval right
+           value <- getValue =<< eval right
            putValue left value
            return value
     
@@ -287,7 +297,12 @@ instance Eval Expression where
     eval (Literal obj@Object { objObject = func@Function { } }) =
         do frames <- liftM envFrames getEnv
            proto <- prototypeOfVar "Function"
-           return $ obj { objPrototype = proto, objObject = func { funcScope = frames } }
+           protoObj <- makeNullObject
+           return $ obj {
+                   objPropMap = mkPropMap [("prototype", protoObj, [])],
+                   objPrototype = proto,
+                   objObject = func { funcScope = frames }
+                }
 
     eval (Literal value) =
         return value

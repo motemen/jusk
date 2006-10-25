@@ -15,6 +15,7 @@ module Internal (
         defineVar,
         prototypeOfVar,
         withNoRef, withNoRef2,
+        makeNullObject,
         ifM,
         (!), (<~)
     ) where
@@ -73,35 +74,35 @@ getProp object p =
               (lift . return)
 
 -- [[Put]]
-putProp :: Value -> String -> Value -> Evaluate ()
-putProp ref@(Ref objRef) p value =
+putProp :: Value -> String -> (Value, [PropertyAttribute]) -> Evaluate ()
+putProp ref@(Ref objRef) p pair =
     do object <- readRef ref
        ifM (canPut object p)
-           (liftIO $ modifyIORef objRef $ insertProp p value)
+           (liftIO $ modifyIORef objRef $ insertProp p pair)
            (return ())
-putProp Void name value =
+putProp Void name (value, _) =
     setVar name value >> return ()
 
-putProp object _ _ =
-    do throw "ReferenceError" $ "cannot put property to " ++ show object
+putProp object p (value, _) =
+    do throw "ReferenceError" $ "cannot put property " ++ getName object ++ "." ++ p ++ " " ++ show value
        return ()
 
-insertProp :: String -> Value -> Value -> Value
-insertProp p value object@Object { objObject = Array array } =
+insertProp :: String -> (Value, [PropertyAttribute]) ->Value -> Value
+insertProp p (value, attr) object@Object { objObject = Array array } =
     case (runLex natural p) of
          Right n | 0 <= (fromInteger n)
             -> object { objObject = Array $ replace array (fromInteger n) value }
-         _ -> object { objPropMap = Map.insert p (mkProp value []) (objPropMap object) }
+         _ -> object { objPropMap = Map.insert p (mkProp value attr) (objPropMap object) }
     where replace list n x =
               if length list < n
                  then take n (list ++ repeat Undefined) ++ [x]
                  else take n list ++ [x] ++ drop (n+1) list
 
-insertProp p value object@Object { objPropMap = propMap }
-    = object { objPropMap = Map.insert p (mkProp value []) propMap }
+insertProp p (value, attr) object@Object { objPropMap = propMap } =
+    object { objPropMap = Map.insert p (mkProp value attr) propMap }
 
-insertProp p value object
-    = nullObject { objPropMap = mkPropMap [(p, value, [])], objValue = object }
+insertProp p (value, attr) object =
+    nullObject { objPropMap = mkPropMap [(p, value, attr)], objValue = object }
 
 -- [[CanPut]]
 canPut :: Value -> String -> Evaluate Bool
@@ -166,7 +167,7 @@ putValue (Reference baseRef name) value =
        value <- ifM (liftM isPrimitive $ readRef value)
                     (readRef value)
                     (makeRef value)
-       putProp baseRef name value
+       putProp baseRef name (value, [])
 
 putValue (Ref ref) value =
     liftIO $ writeIORef ref value
@@ -316,6 +317,11 @@ throw name message =
            objPrototype = proto
        }
        returnCont CThrow error
+
+makeNullObject :: Evaluate Value
+makeNullObject =
+    do proto <- prototypeOfVar "Object"
+       makeRef nullObject { objPrototype = proto }
 
 ifM :: Monad m => m Bool -> m a -> m a -> m a
 ifM mc mt me =

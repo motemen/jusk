@@ -79,13 +79,15 @@ setupEnv =
                             funcNatCode   = function
                         }
                     }
-                    constructor ! "prototype" ! "constructor" <~ constructor
+                    protoRef <- getValue $ constructor ! "prototype"
+                    putProp protoRef "constructor" (constructor, [DontEnum])
                     defineVar name constructor
 
 defineBuiltInFuncs =
     do defineVar "load"      (nativeFunc "load"      1 load)
        defineVar "print"     (nativeFunc "print"     1 printLn)
        defineVar "p"         (nativeFunc "p"         1 printNative)
+       defineVar "__p__"     (nativeFunc "__p__"     1 printNative)
        defineVar "__env__"   (nativeFunc "__env__"   0 env)
        defineVar "__break__" (nativeFunc "__break__" 0 break)
        defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
@@ -113,7 +115,7 @@ env _ _ =
     do env <- getEnv
        proto <- prototypeOfVar "Object"
        object <- makeRef $ nullObject { objPrototype = proto }
-       (object ! "frames" <~) =<< makeRef =<< Array.makeArray =<< liftIO (mapM (setProto proto . frObject) $ tail $ envFrames env)
+       (object ! "frames" <~) =<< makeRef =<< Array.makeArray =<< liftIO (mapM (setProto proto . frObject) $ envFrames env)
        (object ! "stack" <~) =<< makeRef =<< Array.makeArray (map (String . show) $ envContStack env)
        return object
     where setProto proto object@Object { } =

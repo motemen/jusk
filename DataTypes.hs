@@ -344,7 +344,7 @@ nativeFuncPropMap :: [(String, NativeCode, Int)] -> Map String PropertyPair
 nativeFuncPropMap =
     mkPropMap . map convert
     where convert (name, code, arity) =
-              (name, nativeFunc name arity code, [])
+              (name, nativeFunc name arity code, [DontEnum])
 
 isUndefined :: Value -> Bool
 isUndefined Undefined = True
