@@ -225,7 +225,7 @@ showShallow (Ref refObj)   = "<Ref " ++ (showShallow $ unsafePerformIO $ readIOR
 showShallow x = show x
 
 type NativeCode
-    = [Value] -> Evaluate Value
+    = Value -> [Value] -> Evaluate Value
 
 instance Eq (a -> b) where
     (/=) _ _ = True

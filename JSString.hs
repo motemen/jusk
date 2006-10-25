@@ -10,7 +10,6 @@ import Monad
 import Data.Char
 
 import DataTypes
-import Context
 import Internal
 import JSType
 
@@ -26,51 +25,51 @@ prototypeObject =
 
 -- String()
 function :: NativeCode
-function [] = return $ String ""
+function _ [] = return $ String ""
 
-function (x:_) = liftM String $ toString x
+function _ (x:_) = liftM String $ toString x
 
 -- new String()
 constructor :: NativeCode
-constructor args =
-    do string <- function args
+constructor _ args =
+    do string <- function undefined args
        return $ nullObject {
-           objClass     = "String",
-           objValue     = string
+           objClass = "String",
+           objValue = string
        }
 
 toStringMethod :: NativeCode
-toStringMethod _ =
-    do this <- readRef =<< getThis
+toStringMethod this _ =
+    do this <- readRef this
        case this of
             String _ -> return this
             Object { objValue = String _ } -> return this
             _ -> throw "ReferenceError" "String.prototype.toString called on incompatible value"
 
 valueOfMethod :: NativeCode
-valueOfMethod _ =
-    do this <- readRef =<< getThis
+valueOfMethod this _ =
+    do this <- readRef this
        case this of
             String _ -> return this
             Object { objValue = String _ } -> return this
             _ -> do throw "ReferenceError" "String.prototype.valueOf called on incompatible value"
 
 charAt :: NativeCode
-charAt [] = charAt [Undefined]
+charAt this [] = charAt this [Undefined]
 
-charAt (pos:_) =
+charAt this (pos:_) =
     do pos <- toInt pos
-       this <- readRef =<< getThis
+       this <- readRef this
        return $ case this of
                      _ | pos < 0 -> String ""
                      String string -> String $ if pos >= length string then "" else [string !! pos]
 
 charCodeAt :: NativeCode
-charCodeAt [] = charCodeAt [Undefined]
+charCodeAt this [] = charCodeAt this [Undefined]
 
-charCodeAt (pos:_) =
+charCodeAt this (pos:_) =
     do pos <- toInt pos
-       this <- readRef =<< getThis
+       this <- readRef this
        return $ case this of
                      _ | pos < 0 -> Number NaN
                      String string -> if pos >= length string then Number NaN else toValue $ ord (string !! pos)

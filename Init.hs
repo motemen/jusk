@@ -91,11 +91,8 @@ defineBuiltInFuncs =
        defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
        defineVar "exit"      (nativeFunc "exit"      0 exit)
        
-load args =
-    do popFrame
-       value <- liftM last $ mapM loadFile args
-       pushNullScope
-       return value
+load _ args =
+    liftM last $ mapM loadFile args
     where loadFile file =
               do file <- toString file
                  content <- liftIO $ readFile file
@@ -103,16 +100,16 @@ load args =
                       Left err -> throw "SyntaxError" $ showError content err
                       Right program -> liftM last $ mapM eval program
 
-printLn (x:_) =
+printLn _ (x:_) =
     do string <- toString x
        liftIO $ putStrLn string
        return Undefined
 
-printNative (x:_) =
+printNative _ (x:_) =
     do liftIO $ print x
        return Undefined
 
-env _ =
+env _ _ =
     do env <- getEnv
        proto <- prototypeOfVar "Object"
        object <- makeRef $ nullObject { objPrototype = proto }
@@ -125,22 +122,22 @@ env _ =
               do modifyIORef objRef $ \object -> object { objPrototype = proto }
                  return ref
 
-getProto (Object { objPrototype = proto }:_) =
+getProto _ (Object { objPrototype = proto }:_) =
     return proto
 
-getProto (ref@(Ref _):_) =
+getProto _ (ref@(Ref _):_) =
     do obj <- readRef ref
-       getProto [obj]
+       getProto undefined [obj]
 
-getProto _ =
+getProto _ _ =
     return Null
 
-exit [] =
+exit _ [] =
    returnCont CExit Void
 
-exit (x:_) =
+exit _ (x:_) =
    returnCont CExit x
 
-break _ =
+break _ _ =
     do liftIO $ putStrLn "*** break ***"
        withCC (CContinue Nothing) (runReplWithTry >> return Void)

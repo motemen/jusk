@@ -9,7 +9,6 @@ import Text.Regex
 
 import DataTypes
 import Eval
-import Context
 import Internal
 
 -- RegExp.prototype
@@ -22,25 +21,25 @@ prototypeObject =
 
 -- RegExp
 function :: NativeCode
-function [x] = function [x, Undefined]
+function _ [x] = function undefined [x, Undefined]
 
-function [regexp@Object { objObject = RegExp { } }, Undefined] =
+function _ [regexp@Object { objObject = RegExp { } }, Undefined] =
     return regexp
 
-function (r:f:_) =
-    constructor [r, f]
+function _ (r:f:_) =
+    constructor undefined [r, f]
 
 -- new RegExp
 constructor :: NativeCode
-constructor [pattern, flags] =
+constructor _ [pattern, flags] =
     do pattern <- toString pattern
        flags <- toString flags
        return $ nullObject { objObject = RegExp { regexpRegex = mkRegex pattern, regexpPattern = pattern, regexpFlags = flags } }
 
 -- RegExp.prototype.toString
 toStringMethod :: NativeCode
-toStringMethod _ =
-    do this <- readRef =<< getThis
+toStringMethod this _ =
+    do this <- readRef this
        if isRegExp this
           then return $ toValue $ "/" ++ (regexpPattern $ objObject this) ++ "/" ++ (regexpFlags $ objObject this)
           else throw "TypeError" $ getName this ++ " is not a regexp"

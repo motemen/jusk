@@ -9,7 +9,6 @@ import Monad
 import System.Time
 
 import DataTypes
-import Context
 import Internal
 
 -- Date.prototype
@@ -23,20 +22,20 @@ prototypeObject =
 
 -- Date()
 function :: NativeCode
-function [] =
+function _ [] =
     do time <- liftIO $ getClockTime
        return $ String $ show time
 
 -- new Date()
 constructor :: NativeCode
-constructor [] =
+constructor _ [] =
     do time <- liftIO $ getClockTime
        return $ nullObject { objClass = "Date", objValue = toValue $ toMillisecs time }
 
 -- Date.prototype.toString
 toStringMethod :: NativeCode
-toStringMethod _ =
-    do this <- readRef =<< getThis
+toStringMethod this _ =
+    do this <- readRef this
        klass <- classOf this
        if klass == "Date"
           then liftIO $ liftM (String . calendarTimeToString) (millisecsToCT $ getMillisecs this)
@@ -44,8 +43,8 @@ toStringMethod _ =
 
 -- Date.prototype.valueOf
 valueOf :: NativeCode
-valueOf _ =
-    do this <- readRef =<< getThis
+valueOf this _ =
+    do this <- readRef this
        klass <- classOf this
        if klass == "Date"
           then return $ toValue $ getMillisecs this

@@ -10,7 +10,6 @@ import qualified Data.Map as Map
 import Maybe
 
 import DataTypes
-import Context
 import Eval hiding(callMethod)
 import Internal
 import PrettyShow
@@ -27,8 +26,8 @@ prototypeObject =
     }
 
 toStringMethod :: NativeCode
-toStringMethod _ =
-    do this <- readRef =<< getThis
+toStringMethod this _ =
+    do this <- readRef this
        if isFunction this || isNativeFunction this
           then return $ toValue $ prettyShow this
           else throw "TypeError" $ "Function.prototype.toString: " ++ getName this ++ " is not a function"
@@ -39,28 +38,26 @@ function args = constructor args
 
 -- new Function
 constructor :: NativeCode
-constructor _ = throw "NotImplemented" "Function.prototype.constructor"
+constructor _ _ = throw "NotImplemented" "Function.prototype.constructor"
 
 -- Function.prototype.call
 callMethod :: NativeCode
-callMethod (thisArg:args) =
-    do func <- getThis
-       call thisArg func args
+callMethod this (thisArg:args) =
+    call thisArg this args
 
 -- Function.prototype.apply
 apply :: NativeCode
-apply [thisArg] =
-    apply [thisArg, Object { objObject = Array [] }]
+apply this [thisArg] =
+    apply this [thisArg, Object { objObject = Array [] }]
 
-apply (thisArg:argArray:_) =
-    do func <- getThis
-       argArray <- readRef argArray
+apply this (thisArg:argArray:_) =
+    do argArray <- readRef argArray
        case argArray of
-            Object { objObject = Array args } -> call thisArg func args
+            Object { objObject = Array args } -> call thisArg this args
             _ | isArguments argArray ->
                 do length <- toUInt $ argArray ! "length"
                    args <- mapM (getProp argArray . show) [0..length-1]
-                   call thisArg func args
+                   call thisArg this args
             _ -> throw "TypeError" "second argument to Function.prototype.apply must be an array"
 
 isArguments :: Value -> Bool

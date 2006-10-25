@@ -12,7 +12,6 @@ import ParserUtil
 import Context
 import Eval
 import DataTypes
-import Internal
 
 runReplWithTry :: Evaluate ()
 runReplWithTry =

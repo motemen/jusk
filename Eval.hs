@@ -333,10 +333,7 @@ call this callee@Object { objName = name, objObject = Function { funcParam = par
 
 call this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
     do debug $ "call: " ++ name
-       pushNullFrame this
-       value <- nativeFunc args
-       popFrame
-       return value
+       nativeFunc this args
 
 call _ Object { objName = name } _ =
     throw "TypeError" $ name ++ " is not a function"
@@ -375,10 +372,7 @@ jumpToFunc this callee@Object { objObject = Function { funcParam = param, funcBo
 
 jumpToFunc this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
     do debug $ "jumpToFunc: " ++ name
-       pushNullFrame this
-       value <- nativeFunc args
-       popFrame
-       returnCont CReturn value
+       returnCont CReturn =<< nativeFunc this args
 
 jumpToFunc this ref@Ref { } args =
     do object <- readRef ref
@@ -391,7 +385,7 @@ jumpToFunc _ object _ =
 construct :: Value -> [Value] -> Evaluate Value
 construct obj@Object { objConstruct = Just constructor } args =
     do proto <- getProp obj "prototype"
-       object <- makeRef =<< constructor args
+       object <- makeRef =<< constructor Null args
        liftIO $ modifyIORef (getRef object) $ setObjProto proto
        return object
 

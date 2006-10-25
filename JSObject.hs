@@ -10,7 +10,6 @@ import List
 import Monad
 
 import DataTypes
-import Context
 import Internal
 import Eval
 import JSType
@@ -27,23 +26,22 @@ prototypeObject =
 
 -- Object
 function :: NativeCode
-function [] = create []
+function _ [] = create []
 
 -- Object.prototype.toString
 toStringMethod :: NativeCode
-toStringMethod _ =
-    do this <- getThis
-       klass <- classOf this
+toStringMethod this _ =
+    do klass <- classOf this
        return $ String $ "[object " ++ klass ++ "]"
 
 -- Object.prototype.valueOf
 valueOf :: NativeCode
-valueOf _ = getThis
+valueOf this _ = return this
 
 -- Object.prototype.toSource
 toSourceMethod :: NativeCode
-toSourceMethod _ =
-    do this <- toObject =<< readRef =<< getThis
+toSourceMethod this _ =
+    do this <- toObject =<< readRef this
        strings <- mapM pairToString $ Map.assocs $ Map.filter (notElem DontEnum . propAttr) $ objPropMap this
        return $ toValue $ "({" ++ strings `joinBy` ", " ++ "})"
     where pairToString (k, p) =
@@ -63,13 +61,13 @@ create props =
     where withNoAttr (name, value) = (name, mkProp value [])
 
 constructor :: NativeCode
-constructor [] =
+constructor _ [] =
     return $ nullObject {
         objPrototype = prototypeObject,
         objClass     = "Object"
     }
 
-constructor (value:_) =
+constructor _ (value:_) =
     return $ nullObject {
         objPrototype = prototypeObject,
         objClass     = "Object",

@@ -10,7 +10,6 @@ import List(intersperse)
 import Data.IORef
 
 import DataTypes
-import Context
 import Internal
 import Eval
 
@@ -40,23 +39,21 @@ function = constructor
 
 -- new Array
 constructor :: NativeCode
-constructor [Number (Integer n)] =
+constructor _ [Number (Integer n)] =
     do proto <- prototypeOfVar "Array"
        return $ nullObject { objClass = "Array", objPrototype = proto, objObject = Array $ take (fromInteger n) (repeat Undefined) }
 
-constructor xs =
+constructor _ xs =
     makeArray xs
 
 -- Array.prototype.push
 push :: NativeCode
-push [] =
-    do this <- getThis
-       len <- getProp this "length"
+push this [] =
+    do len <- getProp this "length"
        return len
 
-push xs =
-    do thisRef <- getThis
-       this <- readRef thisRef
+push thisRef xs =
+    do this <- readRef thisRef
        case this of
             Object { objObject = Array array } -> liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ array ++ xs)
             _ -> do throw "NotImplemented" $ "Array.prototype.push: " ++ show this
@@ -66,9 +63,8 @@ push xs =
 
 -- Array.prototype.pop
 pop :: NativeCode
-pop _ =
-    do thisRef <- getThis
-       this <- readRef thisRef
+pop thisRef _ =
+    do this <- readRef thisRef
        case this of
             Object { objObject = Array [] }    -> return Undefined
             Object { objObject = Array array }
@@ -78,14 +74,12 @@ pop _ =
 
 -- Array.prototype.unshift
 unshift :: NativeCode
-unshift [] =
-    do this <- getThis
-       len <- getProp this "length"
+unshift this [] =
+    do len <- getProp this "length"
        return len
 
-unshift xs =
-    do thisRef <- getThis
-       this <- readRef thisRef -- Must be a reference
+unshift thisRef xs =
+    do this <- readRef thisRef
        case this of
             Object { objObject = Array array } -> liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ xs ++ array)
             _ -> do throw "NotImplemented" $ "Array.prototype.unshift: " ++ show this
@@ -95,9 +89,8 @@ unshift xs =
 
 -- Array.prototype.shift
 shift :: NativeCode
-shift _ =
-    do thisRef <- getThis
-       this <- readRef thisRef
+shift thisRef _ =
+    do this <- readRef thisRef
        case this of
             Object { objObject = Array [] }    -> return Undefined
             Object { objObject = Array array }
@@ -108,20 +101,20 @@ shift _ =
 
 -- Array.prototype.toString
 toStringMethod :: NativeCode
-toStringMethod _ = join []
+toStringMethod this _ = join this []
 
 -- Array.prototype.toSource
 toSourceMethod :: NativeCode
-toSourceMethod _ =
-    do this <- readRef =<< getThis
+toSourceMethod this _ =
+    do this <- readRef this
        case this of
             Object { objObject = Array array }
                 -> do srcArray <- mapM (\o -> callMethod o "toSource" [] >>= toString) array
                       return $ toValue $ "[" ++ (concat $ intersperse "," srcArray) ++ "]"
 -- Array.prototype.concat
 concatMethod :: NativeCode
-concatMethod args =
-    do this <- readRef =<< getThis
+concatMethod this args =
+    do this <- readRef this
        case this of
             Object { objObject = Array array }
                 -> do args <- mapM readRef args
@@ -135,8 +128,8 @@ concatMethod args =
 
 -- Array.prototype.join
 join :: NativeCode
-join args =
-    do this <- readRef =<< getThis
+join this args =
+    do this <- readRef this
        delim <- if null args then liftIO $ return "," else toString $ head args
        case this of
             Object { objObject = Array array }

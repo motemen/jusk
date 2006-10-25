@@ -9,7 +9,6 @@ import qualified Data.Map as Map
 
 import DataTypes
 import Eval
-import Context
 import Internal
 
 -- Error.prototype
@@ -36,11 +35,8 @@ function :: NativeCode
 function = constructor
 
 -- new Error
-constructor :: NativeCode
-constructor [] = constructor [(String "")]
-
-constructor (message:_) =
-    do message <- toString message
+constructor _ args =
+    do message <- if null args then return "" else toString $ head args
        return $ nullObject {
            objClass   = "Error",
            objPropMap = mkPropMap [("message", String message, [])]
@@ -48,8 +44,7 @@ constructor (message:_) =
 
 -- Error.prototype.toString
 toStringMethod :: NativeCode
-toStringMethod _ =
-    do this <- getThis
-       name <- toString =<< getProp this "name"
+toStringMethod this _ =
+    do name <- toString =<< getProp this "name"
        message <- toString =<< getProp this "message"
        return $ toValue $ name ++ ": " ++ message
