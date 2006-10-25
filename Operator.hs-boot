@@ -27,6 +27,8 @@ bitwiseBinaryOp :: (Int -> Int -> Int) -> Value -> Value -> Evaluate Value
 
 (.>>>.) :: Value -> Value -> Evaluate Value
 
+instanceofOperator :: Value -> Value -> Evaluate Value
+
 inOperator :: Value -> Value -> Evaluate Value
 
 comparisonOp :: (forall a. (Ord a) => a -> a -> Bool) -> Value -> Value -> Evaluate Value

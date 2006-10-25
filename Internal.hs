@@ -46,7 +46,7 @@ classOf ref@Ref { } =
     classOf =<< readRef ref
 
 classOf object@Object { } =
-    return  $ objClass object
+    return $ objClass object
 
 classOf _ =
     return "null"
@@ -77,19 +77,31 @@ putProp :: Value -> String -> Value -> Evaluate ()
 putProp ref@(Ref objRef) p value =
     do object <- readRef ref
        ifM (canPut object p)
-           (liftIO $ modifyIORef objRef $ insertProp value)
+           (liftIO $ modifyIORef objRef $ insertProp p value)
            (return ())
-    where insertProp value object@Object { objPropMap = propMap }
-              = object { objPropMap = Map.insert p (mkProp value []) propMap }
-          insertProp value object
-              = nullObject { objPropMap = mkPropMap [(p, value, [])], objValue = object }
-
 putProp Void name value =
     setVar name value >> return ()
 
 putProp object _ _ =
     do throw "ReferenceError" $ "cannot put property to " ++ show object
        return ()
+
+insertProp :: String -> Value -> Value -> Value
+insertProp p value object@Object { objObject = Array array } =
+    case (runLex natural p) of
+         Right n | 0 <= (fromInteger n)
+            -> object { objObject = Array $ replace array (fromInteger n) value }
+         _ -> object { objPropMap = Map.insert p (mkProp value []) (objPropMap object) }
+    where replace list n x =
+              if length list < n
+                 then take n (list ++ repeat Undefined) ++ [x]
+                 else take n list ++ [x] ++ drop (n+1) list
+
+insertProp p value object@Object { objPropMap = propMap }
+    = object { objPropMap = Map.insert p (mkProp value []) propMap }
+
+insertProp p value object
+    = nullObject { objPropMap = mkPropMap [(p, value, [])], objValue = object }
 
 -- [[CanPut]]
 canPut :: Value -> String -> Evaluate Bool
@@ -110,6 +122,9 @@ hasProperty object@Object { objPropMap = props } p =
 hasProperty ref@Ref { } p =
     flip hasProperty p =<< readRef ref
 
+hasProperty ref@Reference { } p =
+    flip hasProperty p =<< getValue ref
+
 hasProperty o p =
     do throw "NotImplemented" $ "hasProperty: " ++ show o ++ " " ++ show p
        return False
@@ -129,7 +144,8 @@ hasOwnProperty o p =
 getValue :: Value -> Evaluate Value
 getValue (Reference baseRef name) =
     do base <- readRef baseRef
-       when (objClass base == "Global" || objClass base == "Activation")
+       klass <- classOf base
+       when (klass == "Global" || klass == "Activation")
             (ifM (liftM not $ hasOwnProperty base name)
                  ((throw "ReferenceError" $ name ++ " is not defined") >> return ())
                  (return ()))
@@ -236,9 +252,10 @@ getOwnProp (Object { objObject = Array array }) "length" =
 
 getOwnProp (Object { objObject = Array array }) p =
     case (runLex natural p) of
-         Left _  -> do prototype <- prototypeOfVar "Array"
-                       getOwnProp prototype p
-         Right n -> return $ Just $ array !! (fromInteger n)
+         Right n | 0 <= (fromInteger n) && (fromInteger n) < length array
+            -> return $ Just $ array !! (fromInteger n)
+         _  -> do prototype <- prototypeOfVar "Array"
+                  getOwnProp prototype p
 
 getOwnProp object@Object { } p =
     return $ liftM propValue $ Map.lookup p (objPropMap object)

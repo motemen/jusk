@@ -22,6 +22,15 @@ prototypeObject =
                                (mkPropMap [("name", String "Error", []), ("message", String "", [])])
     }
 
+prototypeObjectOfName :: String -> Value
+prototypeObjectOfName name =
+    nullObject {
+        objClass   = "Error",
+        objPropMap = Map.union (nativeFuncPropMap [("constructor", constructor,    1),
+                                                   ("toString",    toStringMethod, 0)])
+                               (mkPropMap [("name", String name, []), ("message", String "", [])])
+    }
+
 -- Error
 function :: NativeCode
 function = constructor

@@ -41,6 +41,18 @@ setupEnv =
        defineConstructor "RegExp"   RegExp.prototypeObject   RegExp.function   RegExp.constructor
        defineConstructor "Error"    Error.prototypeObject    Error.function    Error.constructor
 
+       forM ["EvalError", "RangeError", "ReferenceError", "SyntaxError", "TypeError"]
+            $ \name -> defineConstructor name
+                                         (Error.prototypeObjectOfName name)
+                                         Error.function
+                                         Error.constructor
+
+       forM ["Object", "Array", "String", "Function", "Date", "RegExp", "Error",
+             "EvalError", "RangeError", "ReferenceError", "SyntaxError", "TypeError"]
+            $ \v -> do funcProto <- prototypeOfVar "Function"
+                       var <- getVar v
+                       liftIO $ modifyIORef (getRef var) (setObjProto funcProto)
+
        defineVar "NaN" (Number NaN)
        defineVar "Infinity" (Number $ Double $ 1 / 0)
 

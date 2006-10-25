@@ -427,7 +427,7 @@ defaultValue object hint =
     >>= maybe (throw "NotImplemented" $ "defaultValue: " ++ show object ++ " " ++ hint)
               (return)
     where tryMethod :: String -> Evaluate (Maybe Value)
-          tryMethod name = 
+          tryMethod name =
               do method <- getProp object name
                  case method of
                       Null -> return Nothing

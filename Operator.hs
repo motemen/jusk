@@ -36,8 +36,7 @@ operatorsTable = [
         Binary ">"   $ comparisonOp (>),
         Binary ">="  $ comparisonOp (>=),
         Binary "<="  $ comparisonOp (<=),
---      Binary "instanceof"
---                   $ instanceofOperator,
+        Binary "instanceof" $ instanceofOperator,
         Binary "in"  $ inOperator,
 
         Binary "=="  $ comparisonOp (==),
@@ -138,6 +137,17 @@ bitwiseBinaryOp op n m =
 (.!==.) :: Value -> Value -> Evaluate Value
 (.!==.) x y =
     liftM toValue $ liftM2 (/=) (getValue x) (getValue y)
+
+instanceofOperator :: Value -> Value -> Evaluate Value
+instanceofOperator value klass =
+    do klassProto <- getProp klass "prototype"
+       isProtoEq value klassProto
+    where isProtoEq value klassProto =
+              do proto <- prototypeOf value
+                 case proto of
+                      Null -> return $ Boolean False
+                      _ | proto == klassProto -> return $ Boolean True
+                      _ -> isProtoEq proto klassProto
 
 inOperator :: Value -> Value -> Evaluate Value
 inOperator name object =
