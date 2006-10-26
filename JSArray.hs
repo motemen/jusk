@@ -8,11 +8,11 @@ module JSArray where
 import Prelude hiding(toInteger)
 import Monad hiding(join)
 import List(intersperse)
-import Data.IORef
 
 import DataTypes
 import Internal
 import Eval
+import Operator
 
 -- Array.prototype
 prototypeObject :: Value
@@ -26,6 +26,7 @@ prototypeObject =
                                         ("unshift",     unshift,        1),
                                         ("shift",       shift,          0),
                                         ("slice",       slice,          2),
+                                        ("sort",        sort,           1),
                                         ("splice",      splice,         2),
                                         ("concat",      concatMethod,   1),
                                         ("join",        join,           1)]
@@ -59,7 +60,7 @@ push thisRef xs =
     do this <- readRef thisRef
        case this of
             Object { objObject = Array array } ->
-                liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ array ++ xs)
+                modifyValue thisRef $ setObjObject (Array $ array ++ xs)
             _ -> do throw "NotImplemented" $ "Array.prototype.push: " ++ show this
                     return ()
        len <- getProp thisRef "length"
@@ -72,7 +73,7 @@ pop thisRef _ =
        case this of
             Object { objObject = Array [] } -> return Undefined
             Object { objObject = Array array } ->
-                do liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ init array)
+                do modifyValue thisRef $ setObjObject (Array $ init array)
                    return $ last array
             _ -> throw "NotImplemented" $ "Array.prototype.pop: " ++ show this
 
@@ -86,7 +87,7 @@ unshift thisRef xs =
     do this <- readRef thisRef
        case this of
             Object { objObject = Array array } ->
-                liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ xs ++ array)
+                modifyValue thisRef $ setObjObject (Array $ xs ++ array)
             _ -> do throw "NotImplemented" $ "Array.prototype.unshift: " ++ show this
                     return ()
        len <- getProp thisRef "length"
@@ -98,9 +99,9 @@ shift thisRef _ =
     do this <- readRef thisRef
        case this of
             Object { objObject = Array [] }    -> return Undefined
-            Object { objObject = Array array }
-                -> do liftIO $ modifyIORef (getRef thisRef) $ setObjObject (Array $ tail array)
-                      return $ head array
+            Object { objObject = Array array } ->
+                do modifyValue thisRef $ setObjObject (Array $ tail array)
+                   return $ head array
             _ -> do throw "NotImplemented" $ "Array.prototype.shift: " ++ show this
                     return Void
 
@@ -126,6 +127,46 @@ slice thisRef (start:end:_) =
                     then return $ max (pos + length) 0
                     else return $ min pos length
 
+-- Array.prototype.sort
+sort :: NativeCode
+sort thisRef [] =
+    do this <- readRef thisRef
+       case this of
+            object@Object { objObject = Array array } ->
+                do sorted <- sortM array
+                   modifyValue thisRef (const $ object { objObject = Array sorted })
+                   return thisRef
+            _ -> do throw "NotImplemented" $ "Array.prototype.sort: " ++ show this
+                    return Void
+
+sort thisRef (compareFn:_) =
+    do this <- readRef thisRef
+       case this of
+            object@Object { objObject = Array array } ->
+                do sorted <- sortByM compareFn array
+                   modifyValue thisRef (const $ object { objObject = Array sorted })
+                   return thisRef
+            _ -> do throw "NotImplemented" $ "Array.prototype.sort: " ++ show this
+                    return Void
+
+sortM xs =
+    mergeM (comparisonOp (<)) (take n xs) (drop n xs)
+    where n = length xs `div` 2
+
+sortByM f xs =
+    mergeM compare (take n xs) (drop n xs)
+    where n = length xs `div` 2
+          compare x y = call Null f [x, y]
+
+mergeM _ xs [] = return xs
+mergeM _ [] ys = return ys
+mergeM f xs ys =
+    do (x:xs) <- sortM xs
+       (y:ys) <- sortM ys
+       ifM (toBoolean =<< f x y)
+           (liftM (x:) $ mergeM f xs (y:ys))
+           (liftM (y:) $ mergeM f (x:xs) ys)
+
 -- Array.prototype.splice
 splice :: NativeCode
 splice thisRef (start:count:items) =
@@ -136,8 +177,7 @@ splice thisRef (start:count:items) =
        let c = min (max count 0) (length - start)
        case this of
             object@Object { objObject = Array array } ->
-                do liftIO $ writeIORef (getRef thisRef)
-                          $ object { objObject = Array $ replace array start c items }
+                do modifyValue thisRef (const $ object { objObject = Array $ replace array start c items })
                    makeRef =<< (makeArray $ take c $ drop start array)
             _ -> do throw "NotImplemented" $ "Array.prototype.splice: " ++ show this
                     return Void

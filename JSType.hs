@@ -5,7 +5,6 @@
 
 module JSType where
 import Prelude hiding(toInteger)
-import Data.IORef
 
 import DataTypes
 import Parser (numericLiteral)
@@ -149,8 +148,8 @@ toString ref@Reference { } =
     do object <- getValue ref
        toString object
 
-toString (Ref objRef) =
-    do object <- liftIO $ readIORef objRef
+toString ref@(Ref _) =
+    do object <- readRef ref
        toString object
 
 toString object = 
@@ -185,8 +184,8 @@ toSource ref@Reference { } =
     do object <- getValue ref
        toSource object
 
-toSource (Ref objRef) =
-    do object <- liftIO $ readIORef objRef
+toSource ref@(Ref _) =
+    do object <- readRef ref
        toSource object
 
 toSource object = 
@@ -202,13 +201,13 @@ toObject Null =
 toObject num@(Number _) =
     do klass <- getVar "Number"
        object <- makeRef =<< construct klass []
-       liftIO $ modifyIORef (getRef object) (setObjValue num)
+       modifyValue object $ setObjValue num
        return object
 
 toObject str@(String _) =
     do klass <- getVar "String"
        object <- makeRef =<< construct klass []
-       liftIO $ modifyIORef (getRef object) (setObjValue str)
+       modifyValue object $ setObjValue str
        return object
 
 toObject x = return x

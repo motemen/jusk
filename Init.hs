@@ -8,6 +8,8 @@ import Prelude hiding(break)
 import IO
 import Control.Monad.State
 import Data.IORef
+import qualified Data.Map as Map
+import Network.URI (escapeURIString, isUnreserved, unEscapeString)
 
 import DataTypes
 import Context
@@ -51,7 +53,7 @@ setupEnv =
              "EvalError", "RangeError", "ReferenceError", "SyntaxError", "TypeError"]
             $ \v -> do funcProto <- prototypeOfVar "Function"
                        var <- getVar v
-                       liftIO $ modifyIORef (getRef var) (setObjProto funcProto)
+                       modifyValue var (setObjProto funcProto)
 
        defineVar "NaN" (Number NaN)
        defineVar "Infinity" (Number $ Double $ 1 / 0)
@@ -71,15 +73,18 @@ setupEnv =
                                     else do objectProto <- prototypeOfVar "Object"
                                             return $ prototypeObject { objName = name ++ ".prototype", objPrototype = objectProto }
                     constructor <- makeRef nullObject {
-                        objName      = name,
-                        objPropMap   = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])],
-                        objConstruct = Just construct,
-                        objObject    = nullNativeFunc {
-                            funcArity     = 1,
-                            funcNatCode   = function
+                            objName      = name,
+                            objPropMap   = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])],
+                            objConstruct = Just construct,
+                            objObject    = nullNativeFunc {
+                                funcArity     = 1,
+                                funcNatCode   = function
+                            }
                         }
-                    }
                     protoRef <- getValue $ constructor ! "prototype"
+                    forM (Map.assocs $ objPropMap prototypeObject) $ \(key, prop) -> do
+                        propRef <- makeRef $ propValue prop
+                        putProp protoRef key (propRef, [DontEnum])
                     putProp protoRef "constructor" (constructor, [DontEnum])
                     defineVar name constructor
 
@@ -92,6 +97,8 @@ defineBuiltInFuncs =
        defineVar "__break__" (nativeFunc "__break__" 0 break)
        defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
        defineVar "exit"      (nativeFunc "exit"      0 exit)
+       defineVar "encodeURIComponent" (nativeFunc "encodeURIComponent" 1 encodeURIComponent)
+       defineVar "decodeURIComponent" (nativeFunc "decodeURIComponent" 1 decodeURIComponent)
        
 load _ args =
     liftM last $ mapM loadFile args
@@ -115,13 +122,13 @@ env _ _ =
     do env <- getEnv
        proto <- prototypeOfVar "Object"
        object <- makeRef $ nullObject { objPrototype = proto }
-       (object ! "frames" <~) =<< makeRef =<< Array.makeArray =<< liftIO (mapM (setProto proto . frObject) $ envFrames env)
+       (object ! "frames" <~) =<< makeRef =<< Array.makeArray =<< (mapM (setProto proto . frObject) $ envFrames env)
        (object ! "stack" <~) =<< makeRef =<< Array.makeArray (map (String . show) $ envContStack env)
        return object
     where setProto proto object@Object { } =
               return $ object { objPrototype = proto }
-          setProto proto ref@(Ref objRef) =
-              do modifyIORef objRef $ \object -> object { objPrototype = proto }
+          setProto proto ref@(Ref _) =
+              do modifyValue ref $ \object -> object { objPrototype = proto }
                  return ref
 
 getProto _ (Object { objPrototype = proto }:_) =
@@ -143,3 +150,17 @@ exit _ (x:_) =
 break _ _ =
     do liftIO $ putStrLn "*** break ***"
        withCC (CContinue Nothing) (runReplWithTry >> return Void)
+
+encodeURIComponent _ [] =
+    return $ String ""
+
+encodeURIComponent _ (uri:_) =
+    do uri <- toString uri
+       return $ String $ escapeURIString isUnreserved uri
+
+decodeURIComponent _ [] =
+    return $ String ""
+
+decodeURIComponent _ (uri:_) =
+    do uri <- toString uri
+       return $ String $ unEscapeString uri

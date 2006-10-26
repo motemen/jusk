@@ -131,15 +131,21 @@ bitwiseBinaryOp op n m =
        return $ toValue $ foldl clearBit (n `shiftR` m) [31,30..(31-m+1)]
 
 (.==.) :: Value -> Value -> Evaluate Value
-(.==.) x y =
-    do x <- getValue x; y <- getValue y
-       x' <- readRef x; y' <- readRef y
-       case (x', y') of
+(.==.) xRef yRef =
+    do xRef <- getValue xRef; yRef <- getValue yRef
+       x <- readRef xRef; y <- readRef yRef
+       case (x, y) of
             (Undefined, Null) -> return $ Boolean True
             (Null, Undefined) -> return $ Boolean True
-            _ | isPrimitive x' && isPrimitive y' ->
-                return $ Boolean $ x' == y'
-            _ -> comparisonOp (==) x y
+            _ | isPrimitive x && isPrimitive y ->
+                return $ Boolean $ x == y
+            (Object { }, y) | isNumber y || isString y ->
+                (.==. y) =<< toPrimitive x ""
+            (x, Object { }) | isNumber x || isString x ->
+                (x .==.) =<< toPrimitive y ""
+            (Object { }, Object { }) ->
+                return $ Boolean $ xRef == yRef
+            _ -> return $ Boolean False
 
 (.!=.) :: Value -> Value -> Evaluate Value
 (.!=.) x y = liftM not' $ x .==. y

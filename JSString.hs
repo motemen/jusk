@@ -20,11 +20,13 @@ import JSType
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = nativeFuncPropMap [("toString",   toStringMethod, 0),
-                                        ("valueOf",    valueOfMethod,  0),
-                                        ("charAt",     charAt,         1),
-                                        ("charCodeAt", charCodeAt,     1),
-                                        ("replace",    replace,        2)]
+        objPropMap = nativeFuncPropMap [("toString",    toStringMethod, 0),
+                                        ("valueOf",     valueOfMethod,  0),
+                                        ("charAt",      charAt,         1),
+                                        ("charCodeAt",  charCodeAt,     1),
+                                        ("replace",     replace,        2),
+                                        ("toLowerCase", toLowerCase,   0),
+                                        ("toUpperCase", toUpperCase,   0)]
     }
 
 -- String()
@@ -90,6 +92,8 @@ replace this (searchValue:replaceValue:_) =
        case searchValue of
             Object { objObject = RegExp { regexpRegex = regex, regexpFlags = flags } } ->
                 liftM String $ doReplace string regex $ 'g' `elem` flags
+            _ -> do regexp <- new "RegExp" [searchValue]
+                    replace this [regexp, replaceValue]
     where doReplace string regex global =
               maybe (return string)
                     (\matchInfo@(before, matched, after, _) ->
@@ -125,3 +129,15 @@ replace this (searchValue:replaceValue:_) =
                         | otherwise = loop cs (s ++ [d])
                     xs .!!. n | n < 0 || length xs <= n = ""
                               | otherwise               = xs !! n
+
+-- String.prototype.toLowerCase
+toLowerCase :: NativeCode
+toLowerCase this _ =
+    do string <- toString this
+       return $ String $ map toLower string
+
+-- String.prototype.toUpperCase
+toUpperCase :: NativeCode
+toUpperCase this _ =
+    do string <- toString this
+       return $ String $ map toUpper string

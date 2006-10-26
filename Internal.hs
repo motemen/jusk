@@ -15,6 +15,7 @@ module Internal (
         defineVar,
         prototypeOfVar,
         withNoRef, withNoRef2,
+        modifyValue,
         makeNullObject,
         ifM,
         (!), (<~)
@@ -75,10 +76,10 @@ getProp object p =
 
 -- [[Put]]
 putProp :: Value -> String -> (Value, [PropertyAttribute]) -> Evaluate ()
-putProp ref@(Ref objRef) p pair =
+putProp ref@(Ref _) p pair =
     do object <- readRef ref
        ifM (canPut object p)
-           (liftIO $ modifyIORef objRef $ insertProp p pair)
+           (modifyValue ref $ insertProp p pair)
            (return ())
 putProp Void name (value, _) =
     setVar name value >> return ()
@@ -87,7 +88,7 @@ putProp object p (value, _) =
     do throw "ReferenceError" $ "cannot put property " ++ getName object ++ "." ++ p ++ " " ++ show value
        return ()
 
-insertProp :: String -> (Value, [PropertyAttribute]) ->Value -> Value
+insertProp :: String -> (Value, [PropertyAttribute]) -> Value -> Value
 insertProp p (value, attr) object@Object { objObject = Array array } =
     case (runLex natural p) of
          Right n | 0 <= (fromInteger n)
@@ -153,7 +154,7 @@ getValue (Reference baseRef name) =
        baseName <- liftM getName $ readRef base
        value <- getProp base name
        when (isRef value)
-            (liftIO $ modifyIORef (getRef value) $ setObjName $ baseName +++ name)
+            (modifyValue value $ setObjName $ baseName +++ name)
        getValue value
     where "" +++ name = name
           baseName +++ name = baseName ++ "." ++ name
@@ -323,9 +324,21 @@ makeNullObject =
     do proto <- prototypeOfVar "Object"
        makeRef nullObject { objPrototype = proto }
 
+modifyValue :: Value -> (Value -> Value) -> Evaluate ()
+modifyValue (Ref objRef) f =
+    liftIO $ modifyIORef objRef f
+
+modifyValue ref@Reference { } f =
+    readRef ref >>= flip modifyValue f
+
+modifyValue object _ =
+    do throw "ReferenceError" $ getName object ++ " cannot be modified"
+       return ()
+
 ifM :: Monad m => m Bool -> m a -> m a -> m a
 ifM mc mt me =
     do cond <- mc
        if cond
           then mt
           else me
+

@@ -10,7 +10,6 @@ import IO
 import List
 import Maybe
 import qualified Data.Map as Map
-import Data.IORef
 import Control.Monad.Cont hiding(Cont)
 
 import DataTypes
@@ -401,7 +400,7 @@ construct :: Value -> [Value] -> Evaluate Value
 construct obj@Object { objConstruct = Just constructor } args =
     do proto <- getProp obj "prototype"
        object <- makeRef =<< constructor Null args
-       liftIO $ modifyIORef (getRef object) $ setObjProto proto
+       modifyValue object $ setObjProto proto
        return object
 
 construct obj@Object { objObject = Function { } } args = 

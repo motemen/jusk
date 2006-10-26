@@ -126,3 +126,4 @@ debug message =
        if Debug `elem` (envFlags env)
           then liftIO $ putStrLn $ "debug: " ++ (take ((length $ envContStack env) * 2 - 4) $ repeat ' ') ++ message
           else return ()
+
