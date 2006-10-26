@@ -92,7 +92,8 @@ setupEnv =
                     defineVar name constructor
 
 defineBuiltInFuncs =
-    do defineVar "load"      (nativeFunc "load"      1 load)
+    do defineVar "eval"      (nativeFunc "eval"      1 evalFunc)
+       defineVar "load"      (nativeFunc "load"      1 load)
        defineVar "print"     (nativeFunc "print"     1 printLn)
        defineVar "p"         (nativeFunc "p"         1 printNative)
        defineVar "__p__"     (nativeFunc "__p__"     1 printNative)
@@ -103,6 +104,22 @@ defineBuiltInFuncs =
        defineVar "encodeURIComponent" (nativeFunc "encodeURIComponent" 1 encodeURIComponent)
        defineVar "decodeURIComponent" (nativeFunc "decodeURIComponent" 1 decodeURIComponent)
        
+evalFunc _ [] =
+    return Undefined
+
+evalFunc _ (x:_) =
+    do source <- readRef x
+       case source of
+            String source ->
+                case runLex program source of
+                     Left err -> throw "SyntaxError" $ showError source err
+                     Right program ->
+                         do result <- liftM last $ mapM eval program
+                            if isVoid result
+                               then return Undefined
+                               else return result
+            _ -> return x
+
 load _ args =
     liftM last $ mapM loadFile args
     where loadFile file =
