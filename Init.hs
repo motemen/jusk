@@ -13,13 +13,14 @@ import Network.URI (escapeURIString, isUnreserved, unEscapeString)
 
 import DataTypes
 import Context
-import qualified JSObject as Object
-import qualified JSArray as Array
-import qualified JSString as String
+import qualified JSObject   as Object
+import qualified JSArray    as Array
+import qualified JSString   as String
 import qualified JSFunction as Function
-import qualified JSDate as Date
-import qualified JSRegExp as RegExp
-import qualified JSError as Error
+import qualified JSDate     as Date
+import qualified JSRegExp   as RegExp
+import qualified JSError    as Error
+import JSMath
 import Internal
 import Eval
 import Parser
@@ -54,6 +55,8 @@ setupEnv =
             $ \v -> do funcProto <- prototypeOfVar "Function"
                        var <- getVar v
                        modifyValue var (setObjProto funcProto)
+
+       defineVar "Math" =<< createMathObject
 
        defineVar "NaN" (Number NaN)
        defineVar "Infinity" (Number $ Double $ 1 / 0)

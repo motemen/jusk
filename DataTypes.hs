@@ -447,6 +447,11 @@ getName (Reference base name) = getName base ++ "." ++ name
 getName (Ref ref) = getName $ unsafePerformIO $ readIORef ref
 getName _ = ""
 
+toDouble :: Number -> Double
+toDouble (Integer n) = fromIntegral n
+toDouble (Double n)  = n
+toDouble NaN = undefined
+
 instance ToValue Int where
     toValue n = Number $ Integer $ toEnum n
 

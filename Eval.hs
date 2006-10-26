@@ -117,7 +117,7 @@ instance Eval Statement where
                   return Void
               evalForInBlock varName n =
                   do setVar varName $ String n
-                     eval block
+                     withCC (CContinue Nothing) (eval block)
               propToEnum = Map.keys . Map.filter (notElem DontEnum . propAttr)
 
     eval (STContinue label) =

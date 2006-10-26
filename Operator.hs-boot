@@ -38,5 +38,3 @@ inOperator :: Value -> Value -> Evaluate Value
 comparisonOp :: (forall a. (Ord a) => a -> a -> Bool) -> Value -> Value -> Evaluate Value
 
 applyNumericOp :: (Double -> Double -> a) -> Number -> Number -> Maybe a
-
-toDouble :: Number -> Double

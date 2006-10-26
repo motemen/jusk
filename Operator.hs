@@ -200,8 +200,3 @@ applyNumericOp :: (Double -> Double -> a) -> Number -> Number -> Maybe a
 applyNumericOp _ NaN _ = Nothing
 applyNumericOp _ _ NaN = Nothing
 applyNumericOp op n m = Just $ (toDouble n) `op` (toDouble m)
-
-toDouble :: Number -> Double
-toDouble (Integer n) = fromIntegral n
-toDouble (Double n)  = n
-toDouble NaN = undefined
