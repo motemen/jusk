@@ -136,9 +136,11 @@ regularExpressionChar =
 backSlashSequence :: Parser [Char]
 backSlashSequence =
     do char '\\'
-       (char '/' >> return "/") <|>
-           (do c <- noneOf "\n\r\f"
-               return ['\\', c])
+       (char '/' >> return "/")
+        <|> (do { char 's'; return "[[:space:]]" }) -- XXX Ugly hack
+        <|> (do { choice $ zipWith escaped "fbntr" ["\f", "\b", "\n", "\t", "\r"] })
+        <|> (do { c <- noneOf "\n\r\f"; return ['\\', c] })
+    where escaped c code = do { char c; return code }
 
 regularExpressionFlags :: Parser [Char]
 regularExpressionFlags =

@@ -37,7 +37,7 @@ constructor _ [pattern] =
 constructor _ (pattern:flags:_) =
     do pattern <- toString pattern
        flags <- toString flags
-       return $ nullObject { objObject = RegExp { regexpRegex = mkRegex (escape pattern), regexpPattern = escape pattern, regexpFlags = flags }, objClass = "RegExp" }
+       return $ nullObject { objObject = RegExp { regexpRegex = mkRegex pattern, regexpPattern = pattern, regexpFlags = flags }, objClass = "RegExp" }
     where escape "" = ""
           escape (c:cs) = fromMaybe [c] (lookup c table) ++ escape cs
           table = zip "\r\n\f\v\b\t" ["\\r", "\\n", "\\f", "\\v", "\\b", "\\t"]
