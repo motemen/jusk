@@ -425,6 +425,11 @@ construct Object { objValue = value } args | not $ isNull value =
 construct c _ =
     throw "TypeError" $ getName c ++ " is not a constructor"
 
+new :: String -> [Value] -> Evaluate Value
+new name args =
+    do klass <- getVar name
+       construct klass args
+
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
     (case hint of

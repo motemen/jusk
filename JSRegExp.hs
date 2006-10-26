@@ -34,7 +34,7 @@ constructor :: NativeCode
 constructor _ [pattern, flags] =
     do pattern <- toString pattern
        flags <- toString flags
-       return $ nullObject { objObject = RegExp { regexpRegex = mkRegex pattern, regexpPattern = pattern, regexpFlags = flags } }
+       return $ nullObject { objObject = RegExp { regexpRegex = mkRegex (show pattern), regexpPattern = pattern, regexpFlags = flags }, objClass = "RegExp" }
 
 -- RegExp.prototype.toString
 toStringMethod :: NativeCode
