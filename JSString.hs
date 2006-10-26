@@ -14,6 +14,7 @@ import Text.Regex
 import DataTypes
 import Internal
 import Eval
+import JSArray (makeArray)
 import JSType
 
 -- String.prototype
@@ -25,8 +26,9 @@ prototypeObject =
                                         ("charAt",      charAt,         1),
                                         ("charCodeAt",  charCodeAt,     1),
                                         ("replace",     replace,        2),
-                                        ("toLowerCase", toLowerCase,   0),
-                                        ("toUpperCase", toUpperCase,   0)]
+                                        ("split",       split,          2),
+                                        ("toLowerCase", toLowerCase,    0),
+                                        ("toUpperCase", toUpperCase,    0)]
     }
 
 -- String()
@@ -129,6 +131,20 @@ replace this (searchValue:replaceValue:_) =
                         | otherwise = loop cs (s ++ [d])
                     xs .!!. n | n < 0 || length xs <= n = ""
                               | otherwise               = xs !! n
+
+-- String.prototype.split
+split :: NativeCode
+split this [] =
+    liftM String $ toString this
+
+split this [separator] =
+    do string <- toString this
+       separator <- readRef separator
+       case separator of
+            Object { objObject = RegExp { regexpRegex = regex } } ->
+                makeArray $ map String $ splitRegex regex string
+            _ -> do regexp <- new "RegExp" [separator]
+                    split this [regexp]
 
 -- String.prototype.toLowerCase
 toLowerCase :: NativeCode

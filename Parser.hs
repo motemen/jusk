@@ -123,19 +123,22 @@ regularExpressionBody :: Parser String
 regularExpressionBody =
     do c <- regularExpressionFirstChar
        cs <- many regularExpressionChar
-       return (c:cs)
+       return $ concat $ (c:cs)
 
-regularExpressionFirstChar :: Parser Char
+regularExpressionFirstChar :: Parser [Char]
 regularExpressionFirstChar =
-    backSlashSequence <|> noneOf "\n\r\f*/"
+    backSlashSequence <|> (liftM return $ noneOf "\n\r\f*/")
 
-regularExpressionChar :: Parser Char
+regularExpressionChar :: Parser [Char]
 regularExpressionChar =
-    backSlashSequence <|> noneOf "\n\r\f/"
+    backSlashSequence <|> (liftM return $ noneOf "\n\r\f/")
     
-backSlashSequence :: Parser Char
+backSlashSequence :: Parser [Char]
 backSlashSequence =
-    char '\\' >> noneOf "\n\r\f"
+    do char '\\'
+       (char '/' >> return "/") <|>
+           (do c <- noneOf "\n\r\f"
+               return ['\\', c])
 
 regularExpressionFlags :: Parser [Char]
 regularExpressionFlags =

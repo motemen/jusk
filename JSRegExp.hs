@@ -5,6 +5,7 @@
 -}
 
 module JSRegExp where
+import Maybe
 import Text.Regex
 
 import DataTypes
@@ -31,10 +32,15 @@ function _ (r:f:_) =
 
 -- new RegExp
 constructor :: NativeCode
-constructor _ [pattern, flags] =
+constructor _ [pattern] =
+    constructor undefined [pattern, String ""]
+constructor _ (pattern:flags:_) =
     do pattern <- toString pattern
        flags <- toString flags
-       return $ nullObject { objObject = RegExp { regexpRegex = mkRegex (show pattern), regexpPattern = pattern, regexpFlags = flags }, objClass = "RegExp" }
+       return $ nullObject { objObject = RegExp { regexpRegex = mkRegex (escape pattern), regexpPattern = escape pattern, regexpFlags = flags }, objClass = "RegExp" }
+    where escape "" = ""
+          escape (c:cs) = fromMaybe [c] (lookup c table) ++ escape cs
+          table = zip "\r\n\f\v\b\t" ["\\r", "\\n", "\\f", "\\v", "\\b", "\\t"]
 
 -- RegExp.prototype.toString
 toStringMethod :: NativeCode
