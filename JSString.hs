@@ -27,6 +27,7 @@ prototypeObject =
                                         ("charCodeAt",  charCodeAt,     1),
                                         ("replace",     replace,        2),
                                         ("split",       split,          2),
+                                        ("substring",   substring,      2),
                                         ("toLowerCase", toLowerCase,    0),
                                         ("toUpperCase", toUpperCase,    0)]
     }
@@ -145,6 +146,21 @@ split this [separator] =
                 makeArray $ map String $ splitRegex regex string
             _ -> do regexp <- new "RegExp" [separator]
                     split this [regexp]
+
+-- String.prototype.substring
+substring :: NativeCode
+substring this [] =
+    substring this [Number $ Integer 0, Undefined]
+
+substring this [s] =
+    substring this [s, Undefined]
+
+substring this (s:e:_) =
+    do string <- toString this
+       s <- toInt s
+       e <- if isUndefined e then return $ length string else toInt e
+       let (start, end) = (min s e, max s e)
+       return $ String $ drop start $ take end string
 
 -- String.prototype.toLowerCase
 toLowerCase :: NativeCode

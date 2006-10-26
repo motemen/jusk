@@ -244,9 +244,12 @@ getOwnProp (Ref objRef) p =
 getOwnProp (String string) "length" =
     return $ Just $ toValue $ length string
 
-getOwnProp (String _) p =
-    do proto <- prototypeOfVar "String"
-       getOwnProp proto p
+getOwnProp (String string) p =
+    case (runLex natural p) of
+         Right n | 0 <= (fromInteger n) && (fromInteger n) < length string
+            -> return $ Just $ String [string !! (fromInteger n)]
+         _  -> do prototype <- prototypeOfVar "String"
+                  getOwnProp prototype p
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
 getOwnProp (Object { objObject = Array array }) "length" =
