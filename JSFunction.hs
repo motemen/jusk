@@ -43,7 +43,7 @@ constructor _ _ = throw "NotImplemented" "Function.prototype.constructor"
 -- Function.prototype.call
 callMethod :: NativeCode
 callMethod this (thisArg:args) =
-    call thisArg this args
+    callWithThis thisArg this args
 
 -- Function.prototype.apply
 apply :: NativeCode
@@ -53,11 +53,11 @@ apply this [thisArg] =
 apply this (thisArg:argArray:_) =
     do argArray <- readRef argArray
        case argArray of
-            Object { objObject = Array args } -> call thisArg this args
+            Object { objObject = Array args } -> callWithThis thisArg this args
             _ | isArguments argArray ->
                 do length <- toUInt $ argArray ! "length"
                    args <- mapM (getProp argArray . show) [0..length-1]
-                   call thisArg this args
+                   callWithThis thisArg this args
             _ -> throw "TypeError" "second argument to Function.prototype.apply must be an array"
 
 isArguments :: Value -> Bool

@@ -50,12 +50,6 @@ setupEnv =
                                          Error.function
                                          Error.constructor
 
-       forM ["Object", "Array", "String", "Function", "Date", "RegExp", "Error",
-             "EvalError", "RangeError", "ReferenceError", "SyntaxError", "TypeError"]
-            $ \v -> do funcProto <- prototypeOfVar "Function"
-                       var <- getVar v
-                       modifyValue var (setObjProto funcProto)
-
        defineVar "Math" =<< createMathObject
 
        defineVar "NaN" (Number NaN)
@@ -70,11 +64,7 @@ setupEnv =
        return ()
 
        where defineConstructor name prototypeObject function construct =
-                 do proto <- makeRef
-                             =<< if name == "Object"
-                                    then return prototypeObject { objName = name ++ ".prototype" }
-                                    else do objectProto <- prototypeOfVar "Object"
-                                            return $ prototypeObject { objName = name ++ ".prototype", objPrototype = objectProto }
+                 do proto <- makeRef prototypeObject
                     constructor <- makeRef nullObject {
                             objName      = name,
                             objPropMap   = mkPropMap [("prototype", proto, [DontEnum, DontDelete, ReadOnly])],
@@ -140,16 +130,10 @@ printNative _ (x:_) =
 
 env _ _ =
     do env <- getEnv
-       proto <- prototypeOfVar "Object"
-       object <- makeRef $ nullObject { objPrototype = proto }
-       (object ! "frames" <~) =<< makeRef =<< Array.makeArray =<< (mapM (setProto proto . frObject) $ envFrames env)
-       (object ! "stack" <~) =<< makeRef =<< Array.makeArray (map (String . show) $ envContStack env)
+       object <- makeRef $ nullObject
+       (object ! "frames" <~) =<< makeRef (Array.makeArray $ map frObject $ envFrames env)
+       (object ! "stack" <~)  =<< makeRef (Array.makeArray $ map (String . show) (envContStack env))
        return object
-    where setProto proto object@Object { } =
-              return $ object { objPrototype = proto }
-          setProto proto ref@(Ref _) =
-              do modifyValue ref $ \object -> object { objPrototype = proto }
-                 return ref
 
 getProto _ (Object { objPrototype = proto }:_) =
     return proto

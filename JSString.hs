@@ -109,7 +109,7 @@ replace this (searchValue:replaceValue:_) =
           getReplaceStr matchInfo@(before, matched, _, submatch) =
               do replaceValue' <- readRef replaceValue
                  if typeString replaceValue' == "function"
-                    then (call Null replaceValue
+                    then (call replaceValue
                                $ [String matched] ++ map String submatch ++ [toValue $ length before, this]
                                ) >>= toString
                     else liftM (makeReplaceString matchInfo) $ toString replaceValue
@@ -143,7 +143,7 @@ split this [separator] =
        separator <- readRef separator
        case separator of
             Object { objObject = RegExp { regexpRegex = regex } } ->
-                makeArray $ map String $ splitRegex regex string
+                return $ makeArray $ map String $ splitRegex regex string
             _ -> do regexp <- new "RegExp" [separator]
                     split this [regexp]
 

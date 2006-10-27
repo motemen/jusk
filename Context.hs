@@ -14,6 +14,9 @@ import DataTypes
 getEnv :: Evaluate Env
 getEnv = get
 
+getGlobal :: Evaluate Value
+getGlobal = liftM (frObject . last . envFrames) getEnv
+
 -- Frame
 pushFrame :: Value -> Value -> Evaluate ()
 pushFrame this binding =
@@ -99,10 +102,6 @@ getThis =
        return $ getThis' $ envFrames env
     where getThis' (WithFrame { }:fs) = getThis' fs
           getThis' (f:_) = frThis f
-
-getGlobal :: Evaluate Value
-getGlobal =
-    liftM (frObject . last . envFrames) getEnv
 
 bindParamArgs :: [Parameter] -> [Value] -> Evaluate Value
 bindParamArgs params args =

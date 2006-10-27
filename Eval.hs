@@ -42,11 +42,9 @@ instance Eval Statement where
 
     eval (STFuncDef { funcDefName = name, funcDefFunc = func }) =
         do frames <- liftM envFrames getEnv
-           proto <- prototypeOfVar "Function"
-           protoObj <- makeNullObject
+           protoObj <- makeNewObject
            defineVar name $ nullObject {
                    objPropMap = mkPropMap [("prototype", protoObj, [])],
-                   objPrototype = proto,
                    objObject = func { funcScope = frames }
                }
 
@@ -127,12 +125,8 @@ instance Eval Statement where
         returnCont (CBreak label) Void
 
     eval (STReturn (Just (Operator "()" (callee:args)))) =
-        do maybeRef <- eval callee
-           let this = case maybeRef of
-                           Reference base _ -> base
-                           _ -> Null
-           callee <- getValue =<< eval callee
-           mapM evalValue args >>= jumpToFunc this callee 
+        do callee <- eval callee
+           mapM evalValue args >>= jumpToFunc callee
 
     eval (STReturn expr) =
         do value <- getValue =<< maybe (return Undefined) eval expr
@@ -209,12 +203,8 @@ instance Eval Expression where
            return $ Reference objRef prop
     
     eval (Operator "()" (callee:args)) =
-        do maybeRef <- eval callee
-           let this = case maybeRef of
-                           Reference base _ -> base
-                           _ -> Null
-           callee <- eval callee
-           mapM evalValue args >>= call this callee 
+        do callee <- eval callee
+           mapM evalValue args >>= call callee
     
     eval (Operator "new" (klass:args)) =
         do klass <- getValue =<< eval klass
@@ -259,14 +249,11 @@ instance Eval Expression where
                    evalOperator op args
     
     eval (ArrayLiteral exprs) =
-        do proto <- prototypeOfVar "Array"
-           items <- mapM evalValue exprs
-           array <- makeRef $ nullObject { objPrototype = proto, objObject = Array items }
-           return array
+        do items <- mapM evalValue exprs
+           makeNewArray items
     
     eval (ObjectLiteral pairs) =
-        do constructor <- getVar "Object"
-           object <- makeRef =<< construct constructor []
+        do object <- makeNewObject
            forM pairs $ \(n,e) -> do
                 n <- toString =<< eval n
                 p <- getValue =<< eval e
@@ -274,8 +261,7 @@ instance Eval Expression where
            return object
 
     eval (RegExpLiteral pattern flags) =
-        do constructor <- getVar "RegExp"
-           construct constructor [String pattern, String flags] >>= makeRef
+        new "RegExp" [String pattern, String flags]
     
     eval (List []) =
         return Void
@@ -285,7 +271,6 @@ instance Eval Expression where
     
     eval (Let left right) =
         do left <- eval left
---         value <- readRef =<< getValue =<< eval right
            value <- getValue =<< eval right
            putValue left value
            return value
@@ -295,11 +280,9 @@ instance Eval Expression where
     
     eval (Literal obj@Object { objObject = func@Function { } }) =
         do frames <- liftM envFrames getEnv
-           proto <- prototypeOfVar "Function"
-           protoObj <- makeNullObject
+           protoObj <- makeNewObject
            return $ obj {
                    objPropMap = mkPropMap [("prototype", protoObj, [])],
-                   objPrototype = proto,
                    objObject = func { funcScope = frames }
                 }
 
@@ -331,69 +314,97 @@ evalOperator _ _ =
 -- }}}
 
 -- [[Call]]
-call :: Value -> Value -> [Value] -> Evaluate Value
-call this callee@Object { objName = name, objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
-    do debug $ "call: " ++ name
+call :: Value -> [Value] -> Evaluate Value
+call Reference { refBase = base, refName = name } args =
+    callMethod base name args
+
+call function args =
+    do global <- getGlobal
+       debug $ "call: " ++ show function ++ " " ++ show args
+       callWithThis global function args
+
+callWithThis :: Value -> Value -> [Value] -> Evaluate Value
+callWithThis this callee@Object { objName = name,
+                                  objObject = Function {
+                                      funcParam = param,
+                                      funcBody = body,
+                                      funcScope = scope
+                                  }
+                                } args =
+    do debug $ "callWithThis: " ++ show this ++ " " ++ name ++ " " ++ show args
        arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        withScope scope
                  $ do pushFrame this binding
                       withCC CReturn (eval body >> returnCont CReturn Undefined)
     where makeArguments
-              = do proto <- prototypeOfVar "Object"
-                   return $ nullObject { objPropMap = mkPropMap argProps, objPrototype = proto }
+              = return $ nullObject { objPropMap = mkPropMap argProps }
           argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
-call this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
-    do debug $ "call: " ++ name
+callWithThis this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
+    do debug $ "callWithThis: " ++ name
        nativeFunc this args
 
-call _ Object { objName = name } _ =
+callWithThis _ Object { objName = name } _ =
     throw "TypeError" $ name ++ " is not a function"
 
-call this ref@Ref { } args =
+callWithThis this ref@Ref { } args =
     do object <- readRef ref
-       call this object args
+       callWithThis this object args
 
-call this ref@Reference { } args =
+callWithThis this ref@Reference { } args =
     do callee <- getValue ref
        ifM (toBoolean callee)
-           (call this callee args)
+           (callWithThis this callee args)
            (throw "TypeError" $ getName ref ++ " is not a function")
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
     do method <- readRef =<< getProp object name
        if isFunction method || isNativeFunction method
-          then call object method args
+          then callWithThis object method args
           else throw "TypeError" $ getName object ++ "." ++ name ++ " is not a function"
 
 -- 末尾再帰用
-jumpToFunc :: Value -> Value -> [Value] -> Evaluate Value
-jumpToFunc this callee@Object { objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
-    do debug $ "jumpToFunc: " ++ objName callee
+jumpToFunc :: Value -> [Value] -> Evaluate Value
+jumpToFunc Reference { refBase = base, refName = name } args =
+    jumpToMethod base name args
+
+jumpToFunc function args =
+    do global <- getGlobal
+       jumpToFuncWithThis global function args
+
+jumpToFuncWithThis :: Value -> Value -> [Value] -> Evaluate Value
+jumpToFuncWithThis this callee@Object { objObject = Function { funcParam = param, funcBody = body, funcScope = scope } } args =
+    do debug $ "jumpToFuncWithThis: " ++ objName callee
        arguments <- makeArguments
        binding <- makeRef =<< bindParamArgs (["arguments"] ++ param) ([arguments] ++ args ++ repeat Undefined)
        modifyScope scope
        pushFrame this binding
        eval body
     where makeArguments
-              = do proto <- prototypeOfVar "Object"
-                   return $ nullObject { objPropMap = mkPropMap argProps, objPrototype = proto }
+              = return $ nullObject { objPropMap = mkPropMap argProps }
           argProps = zip3 (map show [0..]) (args) (repeat [DontEnum]) ++
                          [("callee", callee, [DontEnum]), ("length", toValue $ length args, [DontEnum])]
 
-jumpToFunc this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
-    do debug $ "jumpToFunc: " ++ name
+jumpToFuncWithThis this Object { objName = name, objObject = NativeFunction { funcNatCode = nativeFunc } } args =
+    do debug $ "jumpToFuncWithThis: " ++ name
        returnCont CReturn =<< nativeFunc this args
 
-jumpToFunc this ref@Ref { } args =
+jumpToFuncWithThis this ref@Ref { } args =
     do object <- readRef ref
-       jumpToFunc this object args
+       jumpToFuncWithThis this object args
 
-jumpToFunc _ object _ =
+jumpToFuncWithThis _ object _ =
     throw "TypeError" $ getName object ++ " is not a function"
+
+jumpToMethod :: Value -> String -> [Value] -> Evaluate Value
+jumpToMethod object name args =
+    do method <- readRef =<< getProp object name
+       if isFunction method || isNativeFunction method
+          then jumpToFuncWithThis object method args
+          else throw "TypeError" $ getName object ++ "." ++ name ++ " is not a function"
 
 -- [[Construct]]
 construct :: Value -> [Value] -> Evaluate Value
@@ -406,13 +417,13 @@ construct obj@Object { objConstruct = Just constructor } args =
 construct obj@Object { objObject = Function { } } args = 
     do proto <- getProp obj "prototype"
        object <- makeRef $ nullObject { objPrototype = proto }
-       call object obj args
+       callWithThis object obj args
        return object
 
 construct obj@Object { objObject = NativeFunction { } } args =
     do proto <- getProp obj "prototype"
        object <- makeRef $ nullObject { objPrototype = proto }
-       call object obj args
+       callWithThis object obj args
        return object
 
 construct ref@Ref { } args =
@@ -427,7 +438,7 @@ construct c _ =
 new :: String -> [Value] -> Evaluate Value
 new name args =
     do klass <- getVar name
-       construct klass args
+       makeRef =<< construct klass args
 
 defaultValue :: Value -> String -> Evaluate Value
 defaultValue object hint =
@@ -442,10 +453,9 @@ defaultValue object hint =
     where tryMethod :: String -> Evaluate (Maybe Value)
           tryMethod name =
               do method <- getProp object name
-                 case method of
-                      Null -> return Nothing
-                      Undefined -> return Nothing
-                      _ -> do result <- call object method []
-                              if isPrimitive result
-                                 then return $ Just result
-                                 else return Nothing
+                 if isNull method || isUndefined method
+                    then return Nothing
+                    else do result <- callWithThis object method []
+                            if isPrimitive result
+                               then return $ Just result
+                               else return Nothing

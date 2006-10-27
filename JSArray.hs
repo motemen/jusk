@@ -21,21 +21,21 @@ prototypeObject =
         objPropMap = nativeFuncPropMap [("constructor", constructor,    1),
                                         ("toString",    toStringMethod, 0),
                                         ("toSource",    toSourceMethod, 0),
-                                        ("push",        push,           1),
+                                        ("concat",      concatMethod,   1),
+                                        ("join",        join,           1),
                                         ("pop",         pop,            0),
-                                        ("unshift",     unshift,        1),
+                                        ("push",        push,           1),
                                         ("shift",       shift,          0),
+                                        ("reverse",     reverseMethod,  0),
                                         ("slice",       slice,          2),
                                         ("sort",        sort,           1),
                                         ("splice",      splice,         2),
-                                        ("concat",      concatMethod,   1),
-                                        ("join",        join,           1)]
+                                        ("unshift",     unshift,        1)]
     }
 
-makeArray :: [Value] -> Evaluate Value
+makeArray :: [Value] -> Value
 makeArray xs =
-    do proto <- prototypeOfVar "Array"
-       return $ nullObject { objClass = "Array", objPrototype = proto, objObject = Array xs }
+    nullObject { objClass = "Array", objObject = Array xs }
 
 -- Array
 function :: NativeCode
@@ -44,11 +44,46 @@ function = constructor
 -- new Array
 constructor :: NativeCode
 constructor _ [Number (Integer n)] =
-    do proto <- prototypeOfVar "Array"
-       return $ nullObject { objClass = "Array", objPrototype = proto, objObject = Array $ take (fromInteger n) (repeat Undefined) }
+    return $ makeArray  $ take (fromInteger n) (repeat Undefined)
 
 constructor _ xs =
-    makeArray xs
+    return $ makeArray xs
+
+-- Array.prototype.concat
+concatMethod :: NativeCode
+concatMethod this args =
+    do this <- readRef this
+       case this of
+            Object { objObject = Array array } ->
+                do args <- mapM readRef args
+                   makeRef $ makeArray (concatArgs array args)
+    where concatArgs array [] =
+              array
+          concatArgs array ((Object { objObject = Array array' }):xs) =
+              concatArgs (array ++ array') xs
+          concatArgs array (x:xs) =
+              concatArgs (array ++ [x]) xs
+
+-- Array.prototype.join
+join :: NativeCode
+join this args =
+    do this <- readRef this
+       delim <- if null args then liftIO $ return "," else toString $ head args
+       case this of
+            Object { objObject = Array array } ->
+                do strs <- mapM toString array
+                   return $ toValue $ concat $ intersperse delim strs
+
+-- Array.prototype.pop
+pop :: NativeCode
+pop thisRef _ =
+    do this <- readRef thisRef
+       case this of
+            Object { objObject = Array [] } -> return Undefined
+            Object { objObject = Array array } ->
+                do modifyValue thisRef $ setObjObject (Array $ init array)
+                   return $ last array
+            _ -> throw "NotImplemented" $ "Array.prototype.pop: " ++ show this
 
 -- Array.prototype.push
 push :: NativeCode
@@ -66,16 +101,27 @@ push thisRef xs =
        len <- getProp thisRef "length"
        return len
 
--- Array.prototype.pop
-pop :: NativeCode
-pop thisRef _ =
+-- Array.prototype.reverse
+reverseMethod :: NativeCode
+reverseMethod thisRef _ =
     do this <- readRef thisRef
        case this of
-            Object { objObject = Array [] } -> return Undefined
             Object { objObject = Array array } ->
-                do modifyValue thisRef $ setObjObject (Array $ init array)
-                   return $ last array
-            _ -> throw "NotImplemented" $ "Array.prototype.pop: " ++ show this
+                do modifyValue thisRef $ setObjObject (Array $ reverse array)
+                   return thisRef
+            _ -> throw "NotImplemented" $ "Array.prototype.push: " ++ show this
+
+-- Array.prototype.shift
+shift :: NativeCode
+shift thisRef _ =
+    do this <- readRef thisRef
+       case this of
+            Object { objObject = Array [] }    -> return Undefined
+            Object { objObject = Array array } ->
+                do modifyValue thisRef $ setObjObject (Array $ tail array)
+                   return $ head array
+            _ -> do throw "NotImplemented" $ "Array.prototype.shift: " ++ show this
+                    return Void
 
 -- Array.prototype.unshift
 unshift :: NativeCode
@@ -92,18 +138,6 @@ unshift thisRef xs =
                     return ()
        len <- getProp thisRef "length"
        return len
-
--- Array.prototype.shift
-shift :: NativeCode
-shift thisRef _ =
-    do this <- readRef thisRef
-       case this of
-            Object { objObject = Array [] }    -> return Undefined
-            Object { objObject = Array array } ->
-                do modifyValue thisRef $ setObjObject (Array $ tail array)
-                   return $ head array
-            _ -> do throw "NotImplemented" $ "Array.prototype.shift: " ++ show this
-                    return Void
 
 -- Array.prototype.slice
 slice :: NativeCode
@@ -143,29 +177,31 @@ sort thisRef (compareFn:_) =
     do this <- readRef thisRef
        case this of
             object@Object { objObject = Array array } ->
-                do sorted <- sortByM compareFn array
+                do sorted <- sortByM cmp array
                    modifyValue thisRef (const $ object { objObject = Array sorted })
                    return thisRef
             _ -> do throw "NotImplemented" $ "Array.prototype.sort: " ++ show this
                     return Void
+    where cmp x y = call compareFn [x, y]
 
 sortM xs =
     mergeM compare (take n xs) (drop n xs)
     where n = length xs `div` 2
           compare x y = ifM (toBoolean =<< comparisonOp (<) x y)
                             (return $ toValue (-1 :: Int))
-                            (return $ toValue ( 1 :: Int))
+                            (ifM (toBoolean =<< comparisonOp (>) x y)
+                                 (return $ toValue (1 :: Int))
+                                 (return $ toValue (0 :: Int)))
 
 sortByM f xs =
-    mergeM compare (take n xs) (drop n xs)
+    mergeM f (take n xs) (drop n xs)
     where n = length xs `div` 2
-          compare x y = call Null f [x, y]
 
 mergeM _ xs [] = return xs
 mergeM _ [] ys = return ys
 mergeM f xs ys =
-    do (x:xs) <- sortM xs
-       (y:ys) <- sortM ys
+    do (x:xs) <- sortByM f xs
+       (y:ys) <- sortByM f ys
        ord <- toInt =<< f x y
        if ord < 0
           then liftM (x:) $ mergeM f xs (y:ys)
@@ -182,7 +218,7 @@ splice thisRef (start:count:items) =
        case this of
             object@Object { objObject = Array array } ->
                 do modifyValue thisRef (const $ object { objObject = Array $ replace array start c items })
-                   makeRef =<< (makeArray $ take c $ drop start array)
+                   makeRef (makeArray $ take c $ drop start array)
             _ -> do throw "NotImplemented" $ "Array.prototype.splice: " ++ show this
                     return Void
     where replace array start count items =
@@ -205,27 +241,3 @@ toSourceMethod this _ =
             Object { objObject = Array array }
                 -> do srcArray <- mapM (\o -> callMethod o "toSource" [] >>= toString) array
                       return $ toValue $ "[" ++ (concat $ intersperse "," srcArray) ++ "]"
--- Array.prototype.concat
-concatMethod :: NativeCode
-concatMethod this args =
-    do this <- readRef this
-       case this of
-            Object { objObject = Array array } ->
-                do args <- mapM readRef args
-                   makeRef =<< makeArray (concatArgs array args)
-    where concatArgs array [] =
-              array
-          concatArgs array ((Object { objObject = Array array' }):xs) =
-              concatArgs (array ++ array') xs
-          concatArgs array (x:xs) =
-              concatArgs (array ++ [x]) xs
-
--- Array.prototype.join
-join :: NativeCode
-join this args =
-    do this <- readRef this
-       delim <- if null args then liftIO $ return "," else toString $ head args
-       case this of
-            Object { objObject = Array array } ->
-                do strs <- mapM toString array
-                   return $ toValue $ concat $ intersperse delim strs

@@ -16,7 +16,7 @@ module Internal (
         prototypeOfVar,
         withNoRef, withNoRef2,
         modifyValue,
-        makeNullObject,
+        makeNewObject, makeNewArray,
         ifM,
         (!), (<~)
     ) where
@@ -38,14 +38,14 @@ prototypeOf ref@Ref { } =
 
 prototypeOf Object { objPrototype = Null, objObject = object } =
     case object of
-         Array _ -> prototypeOfVar "Array"
+         Array _            -> prototypeOfVar "Array"
          NativeFunction { } -> prototypeOfVar "Function"
-         Function { } -> prototypeOfVar "Function"
-         SimpleObject -> prototypeOfVar "Object"
-         ULObject -> return Null
+         Function { }       -> prototypeOfVar "Function"
+         SimpleObject       -> prototypeOfVar "Object"
+         ULObject           -> return Null
 
-prototypeOf object@Object { } =
-    return $ objPrototype object
+prototypeOf Object { objPrototype = proto } =
+    return proto
 
 prototypeOf (String _) =
     prototypeOfVar "String"
@@ -328,11 +328,6 @@ throw name message =
        }
        returnCont CThrow error
 
-makeNullObject :: Evaluate Value
-makeNullObject =
-    do proto <- prototypeOfVar "Object"
-       makeRef nullObject { objPrototype = proto }
-
 modifyValue :: Value -> (Value -> Value) -> Evaluate ()
 modifyValue (Ref objRef) f =
     liftIO $ modifyIORef objRef f
@@ -351,3 +346,10 @@ ifM mc mt me =
           then mt
           else me
 
+makeNewObject :: Evaluate Value
+makeNewObject =
+    makeRef nullObject
+
+makeNewArray :: [Value] -> Evaluate Value
+makeNewArray xs =
+    makeRef $ nullObject { objClass = "Array", objObject = Array xs }
