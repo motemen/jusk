@@ -150,8 +150,11 @@ sort thisRef (compareFn:_) =
                     return Void
 
 sortM xs =
-    mergeM (comparisonOp (<)) (take n xs) (drop n xs)
+    mergeM compare (take n xs) (drop n xs)
     where n = length xs `div` 2
+          compare x y = ifM (toBoolean =<< comparisonOp (<) x y)
+                            (return $ toValue (-1 :: Int))
+                            (return $ toValue ( 1 :: Int))
 
 sortByM f xs =
     mergeM compare (take n xs) (drop n xs)
@@ -163,9 +166,10 @@ mergeM _ [] ys = return ys
 mergeM f xs ys =
     do (x:xs) <- sortM xs
        (y:ys) <- sortM ys
-       ifM (toBoolean =<< f x y)
-           (liftM (x:) $ mergeM f xs (y:ys))
-           (liftM (y:) $ mergeM f (x:xs) ys)
+       ord <- toInt =<< f x y
+       if ord < 0
+          then liftM (x:) $ mergeM f xs (y:ys)
+          else liftM (y:) $ mergeM f (x:xs) ys
 
 -- Array.prototype.splice
 splice :: NativeCode

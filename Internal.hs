@@ -36,8 +36,19 @@ prototypeOf :: Value -> Evaluate Value
 prototypeOf ref@Ref { } =
     prototypeOf =<< readRef ref
 
+prototypeOf Object { objPrototype = Null, objObject = object } =
+    case object of
+         Array _ -> prototypeOfVar "Array"
+         NativeFunction { } -> prototypeOfVar "Function"
+         Function { } -> prototypeOfVar "Function"
+         SimpleObject -> prototypeOfVar "Object"
+         ULObject -> return Null
+
 prototypeOf object@Object { } =
     return $ objPrototype object
+
+prototypeOf (String _) =
+    prototypeOfVar "String"
 
 prototypeOf _ =
     return Null
@@ -231,10 +242,9 @@ isFrameVarBound [] _ =
     return False
 
 isFrameVarBound (f:fs) name =
-    do bound <- hasOwnProperty (frObject f) name
-       if bound
-          then return True
-          else isFrameVarBound fs name
+    ifM (hasOwnProperty (frObject f) name)
+        (return True)
+        (isFrameVarBound fs name)
 
 getOwnProp :: Value -> String -> Evaluate (Maybe Value)
 getOwnProp (Ref objRef) p =
@@ -248,19 +258,16 @@ getOwnProp (String string) p =
     case (runLex natural p) of
          Right n | 0 <= (fromInteger n) && (fromInteger n) < length string
             -> return $ Just $ String [string !! (fromInteger n)]
-         _  -> do prototype <- prototypeOfVar "String"
-                  getOwnProp prototype p
+         _  -> return Nothing
 
--- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-4_Array_Objects.html#section-G
-getOwnProp (Object { objObject = Array array }) "length" =
+getOwnProp Object { objObject = Array array } "length" =
     return $ Just $ toValue $ length array
 
-getOwnProp (Object { objObject = Array array }) p =
+getOwnProp Object { objObject = Array array } p =
     case (runLex natural p) of
          Right n | 0 <= (fromInteger n) && (fromInteger n) < length array
             -> return $ Just $ array !! (fromInteger n)
-         _  -> do prototype <- prototypeOfVar "Array"
-                  getOwnProp prototype p
+         _  -> return Nothing
 
 getOwnProp object@Object { } p =
     return $ liftM propValue $ Map.lookup p (objPropMap object)
@@ -279,9 +286,8 @@ getOwnPropAttr (Object { objObject = Array _ }) "length" =
 
 getOwnPropAttr (Object { objObject = Array _ }) p =
     case (runLex natural p) of
-         Left _  -> do a <- prototypeOfVar "Array"
-                       getOwnPropAttr a p
          Right _ -> return $ Just $ []
+         Left _  -> return Nothing
 
 getOwnPropAttr object@Object { } p =
     return $ liftM propAttr $ Map.lookup p (objPropMap object)

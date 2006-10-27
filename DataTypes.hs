@@ -150,11 +150,13 @@ data NativeObject
         regexpFlags   :: [Char]
       }
     | Array [Value]
+    | ULObject
 
 instance Eq NativeObject where
     (==) (Function p s f) (Function p' s' f') = p == p' && s == s' && f == f'
     (==) (NativeFunction { }) (NativeFunction { }) = False
     (==) (RegExp _ p f) (RegExp _ p' f') = p == p' && f == f'
+    (==) SimpleObject SimpleObject = True
     (==) _ _ = False
     
 setObjName :: String -> Value -> Value
@@ -222,12 +224,13 @@ instance Eq Value where
 -}
 
 instance Show NativeObject where
-    show SimpleObject = "<SimpleObject>"
+    show SimpleObject = ""
     show (Function { funcParam = params, funcBody = body }) =
         "<Function " ++ show params ++ " " ++ show body ++ ">"
     show (NativeFunction { }) = "<NativeFunction>"
     show (RegExp { regexpPattern = pattern }) = "<RegExp " ++ pattern ++ ">"
     show (Array _) = "<Array>"
+    show ULObject = "<UL-Object>"
 
 showShallow :: Value -> String
 showShallow (Object { objName = "" })   = "<Object ...>"

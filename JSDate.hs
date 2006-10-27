@@ -17,7 +17,8 @@ prototypeObject =
     nullObject {
         objPropMap = nativeFuncPropMap [("constructor", constructor,    7),
                                         ("toString",    toStringMethod, 0),
-                                        ("valueOf",     valueOf,        1)]
+                                        ("valueOf",     valueOf,        1),
+                                        ("getTime",     getTime,        1)]
     }
 
 -- Date()
@@ -48,7 +49,16 @@ valueOf this _ =
        klass <- classOf this
        if klass == "Date"
           then return $ toValue $ getMillisecs this
-          else throw "TypeError" "Date.prototype.toString called on incompatible"
+          else throw "TypeError" $ "Date.prototype.toString called on incompatible " ++ klass
+
+-- Date.prototype.getTime
+getTime :: NativeCode
+getTime this _ =
+    do this <- readRef this
+       klass <- classOf this
+       if klass == "Date"
+          then return $ toValue $ getMillisecs this
+          else throw "TypeError" $ "Date.prototype.getTime called on incompatible " ++ klass
 
 getMillisecs (Object { objValue = Number (Integer millisecs) }) = millisecs
 

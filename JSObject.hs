@@ -21,7 +21,8 @@ prototypeObject =
         objPropMap = nativeFuncPropMap [("toString", toStringMethod, 0),
                                         ("valueOf",  valueOf,        0),
                                         ("toSource", toSourceMethod, 0)],
-        objClass = "Object"
+        objClass = "Object",
+        objObject = ULObject
     }
 
 -- Object
