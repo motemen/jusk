@@ -123,7 +123,8 @@ data Value
         objConstruct :: Maybe NativeCode,   -- [[Construct]]
         objName      :: String,
 
-        objObject    :: NativeObject
+        objObject    :: NativeObject,
+        objGetter    :: Value
       }
 {-
     内部でのみ使用
@@ -193,13 +194,15 @@ instance Show Value where
                    objClass = klass,
                    objValue = value,
                    objName = name,
-                   objObject = obj }) =
+                   objObject = obj,
+                   objGetter = getter }) =
         "<Object" ++ (if null name then "" else " " ++ show name) ++
             " {" ++ showMap propMap ++ "}" ++
             " #prototype=" ++ showShallow prototype ++
             " #class=" ++ show klass ++
             " #value=" ++ show value ++
-            " #object=" ++ show obj ++ ">"
+            " #object=" ++ show obj ++
+            " #getter=" ++ showShallow getter ++ ">"
         where showMap mapData =
                   concat $ ", " `intersperse` map showPair (assocs mapData)
               showPair (k, v) =
@@ -336,7 +339,8 @@ nullObject = Object {
         objClass      = "Object",
         objConstruct  = Nothing,
         objName       = "",
-        objObject     = SimpleObject
+        objObject     = SimpleObject,
+        objGetter     = Null
     }
 
 nullFunction :: NativeObject
@@ -442,6 +446,7 @@ typeString (Object { objObject = NativeFunction { }})
 typeString (Object { }) = "object"
 typeString (Ref { })    = "ref"
 typeString (Reference { }) = "reference"
+typeString Void         = "void"
 
 getName :: Value -> String
 getName o | isPrimitive o = show o

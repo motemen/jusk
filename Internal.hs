@@ -27,6 +27,7 @@ import Maybe
 
 import DataTypes
 import Context
+import Eval
 import ParserUtil (natural,runLex)
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/8_Types.html#section-8.6
@@ -170,8 +171,15 @@ getValue (Reference baseRef name) =
     where "" +++ name = name
           baseName +++ name = baseName ++ "." ++ name
 
+getValue object@Object { objGetter = func }
+    | not (isNull func) =
+        callWithThis object func []
+
 getValue value =
-    return value
+    do obj <- readRef value
+       case obj of
+            Object { objGetter = func } | not (isNull func) -> getValue obj
+            _ -> return value
 
 putValue :: Value -> Value -> Evaluate ()
 putValue (Reference baseRef name) value =

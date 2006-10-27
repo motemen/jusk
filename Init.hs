@@ -83,17 +83,22 @@ setupEnv =
 
 defineBuiltInFuncs =
     do defineVar "eval"      (nativeFunc "eval"      1 evalFunc)
+       defineVar "encodeURIComponent" (nativeFunc "encodeURIComponent" 1 encodeURIComponent)
+       defineVar "decodeURIComponent" (nativeFunc "decodeURIComponent" 1 decodeURIComponent)
        defineVar "load"      (nativeFunc "load"      1 load)
+       defineVar "exit"      (nativeFunc "exit"      0 exit)
        defineVar "print"     (nativeFunc "print"     1 printLn)
        defineVar "p"         (nativeFunc "p"         1 printNative)
        defineVar "__p__"     (nativeFunc "__p__"     1 printNative)
-       defineVar "__env__"   (nativeFunc "__env__"   0 env)
-       defineVar "__break__" (nativeFunc "__break__" 0 break)
+       defineVar "__env__"   (mkObjWithGetter env)
+       defineVar "__break__" (mkObjWithGetter break)
        defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
-       defineVar "exit"      (nativeFunc "exit"      0 exit)
-       defineVar "encodeURIComponent" (nativeFunc "encodeURIComponent" 1 encodeURIComponent)
-       defineVar "decodeURIComponent" (nativeFunc "decodeURIComponent" 1 decodeURIComponent)
        
+mkObjWithGetter getter =
+    nullObject {
+        objGetter = nativeFunc "__getter__" 0 getter
+    }
+
 evalFunc _ [] =
     return Undefined
 

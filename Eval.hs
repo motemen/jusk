@@ -15,7 +15,7 @@ import Control.Monad.Cont hiding(Cont)
 import DataTypes
 import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
-import Internal
+import {-# SOURCE #-} Internal
 import Context
 import PrettyShow
 
