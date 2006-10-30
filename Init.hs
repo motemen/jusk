@@ -88,7 +88,6 @@ defineBuiltInFuncs =
        defineVar "load"      (nativeFunc "load"      1 load)
        defineVar "exit"      (nativeFunc "exit"      0 exit)
        defineVar "print"     (nativeFunc "print"     1 printLn)
-       defineVar "p"         (nativeFunc "p"         1 printNative)
        defineVar "__p__"     (nativeFunc "__p__"     1 printNative)
        defineVar "__env__"   (mkObjWithGetter env)
        defineVar "__break__" (mkObjWithGetter break)

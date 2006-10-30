@@ -7,13 +7,13 @@ FLAGS = -fwarn-overlapping-patterns \
 		-O3 \
 		-v
 
-all: main tags
+all: js
 
-main: $(SRC)
-	ghc --make Main.hs -o main $(FLAGS)
+js: $(SRC)
+	ghc --make Main.hs -o js $(FLAGS)
 
 tags: $(SRC)
 	hasktags -c *.hs
 
 clean:
-	rm *.hi *.o *.exe main
+	rm *.hi *.o *.exe js
