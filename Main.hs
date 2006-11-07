@@ -5,7 +5,7 @@
 -}
 
 module Main where
-import IO
+import IO hiding(try)
 import List
 import System.Environment hiding(getEnv)
 import System.Console.GetOpt
@@ -26,6 +26,12 @@ run flags thunk =
        (withCC CExit $ setupEnv >> thunk >> return Void) `runContT` (const $ return Void) `evalStateT` nullEnv
        return ()
 
+try :: Evaluate a -> Evaluate ()
+try thunk =
+    do e <- withCC CThrow $ do { thunk; return Void }
+       unless (isVoid e)
+              (toString e >>= liftIO . ePutStrLn)
+
 runRepl :: [Flag] -> IO ()
 runRepl flags =
     run flags runReplWithTry
@@ -39,14 +45,10 @@ evalText input =
 evalFile :: [Flag] -> String -> IO ()
 evalFile flags filename =
     do content <- readFile filename
-       run flags $ do
-           e <- withCC CThrow $ do
-                    evalText content
-                    when (EnterRepl `elem` flags)
-                         (runReplWithTry)
-                    return Void
-           unless (isVoid e)
-                  (toString e >>= liftIO . ePutStrLn)
+       run flags $ try $ do
+           evalText content
+           when (EnterRepl `elem` flags)
+                (runReplWithTry)
 
 options :: [OptDescr Flag]
 options = [
@@ -77,7 +79,7 @@ main =
        maybe (case length rest of
                    0 -> runRepl flags
                    _ -> evalFile flags $ rest !! 0)
-             (\(EvalStr string) -> run flags $ evalText string)
+             (\(EvalStr string) -> run flags $ try $ evalText string)
              (find isEvalStr flags)
     where isEvalStr (EvalStr _) = True
           isEvalStr _ = False

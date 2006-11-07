@@ -1,11 +1,6 @@
 SRC = *.hs
 
-FLAGS = -fwarn-overlapping-patterns \
-        -fwarn-unused-binds \
-        -fwarn-unused-imports \
-        -fwarn-unused-matches \
-		-O3 \
-		-v
+FLAGS = -W -O
 
 all: js
 
