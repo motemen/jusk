@@ -17,7 +17,6 @@ import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
 import {-# SOURCE #-} Internal
 import Context
-import PrettyShow
 
 ePutStrLn :: String -> IO ()
 ePutStrLn = hPutStrLn stderr
@@ -28,7 +27,7 @@ evalProgram program =
        if null program || ParseOnly `elem` (envFlags env)
           then return Void
           else if (Debug `elem` (envFlags env))
-                  then liftM last $ mapM (\e -> do { liftIO $ ePutStrLn $ prettyShow e; eval e }) program
+                  then liftM last $ mapM (\e -> do { liftIO $ ePutStrLn $ inspect e; eval e }) program
                   else liftM last $ mapM eval program
 
 instance Eval Statement where

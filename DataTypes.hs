@@ -14,6 +14,7 @@ import Control.Monad.State
 import Control.Monad.Cont hiding(Cont)
 import Text.Regex
 import List
+import Maybe
 
 data Flag
     = Debug
@@ -40,12 +41,11 @@ data Env
 instance Show Env where
     show (Env { envFrames = frames, envContStack = conts, envFlags = flags }) =
         "  Frames:\n" ++
-        (unlines $ map indent $ map show frames) ++
+        (unlines $ map ("    " ++) $ map show frames) ++
         "  Cont:\n" ++
-        (unlines $ map indent $ map show conts) ++
-        "  Flags:\n" ++
-        (indent $ unwords $ map show flags)
-        where indent s = "    " ++ s
+        (unlines $ map ("    " ++) $ map show conts) ++
+        "  Flags:\n    " ++
+        (unwords $ map show flags)
 
 data Frame
     = GlobalFrame { frObject :: Value, frThis :: Value }
@@ -92,7 +92,7 @@ data Statement
     | STReturn (Maybe Expression)
     | STThrow Expression
     | STTry { tryClause :: Statement, tryCatchClause :: Maybe (Parameter, Statement), tryFinallyClause :: Maybe Statement }
-    deriving (Show, Eq)
+    deriving (Eq)
 
 data Expression
     = Keyword String
@@ -105,7 +105,46 @@ data Expression
     | List [Expression]
     | Operator { opOperator :: String, opArgs :: [Expression] }
     | Let { letLeft :: Expression, letRight :: Expression }
-    deriving (Show, Eq)
+    deriving (Eq)
+
+{- TODO
+data Operator
+    = UnaryOp UnaryOperator Expression
+    | BinaryOp BinaryOperator (Expression, Expression)
+    | TernaryOp (Expression, Expression, Expression)
+    | MultiaryOp MultiaryOperator [Expression]
+
+data UnaryOperator
+    = OpTypeof              -- typeof
+    | OpUnaryPlus           -- +
+    | OpUnaryMinus          -- -
+    | OpBitwiseNot          -- ~
+    | OpLogicalNot          -- !
+
+data BinaryOperator
+    = OpMultiplication      -- *
+    | OpDivision            -- /
+    | OpRemainder           -- %
+    | OpBinaryPlus          -- +
+    | OpBinaryMinus         -- -
+    | OpSignedRightShift    -- >>
+    | OpBitwiseLeftShift    -- <<
+    | OpUnsignedRightShift  -- >>>
+    | OpLessThan            -- <
+    | OpGreaterThan         -- >
+    | OpOpLessThanEq        -- <=
+    | OpGreaterThanEq       -- >=
+    | OpInstanceof          -- instanceof
+    | OpIn                  -- in
+    | OpEqual               -- ==
+    | OpNotEqual            -- !=
+    | OpStrictlyEqual       -- ===
+    | OpStrictlyNotEqual    -- !==
+    | OpBitwiseAnd          -- &
+    | OpBitwiseOr           -- |
+    | OpBitwiseXor          -- ^
+    | OpBracket             -- []
+-}
 
 data Value
     = Undefined
@@ -176,72 +215,6 @@ setObjObject :: NativeObject -> Value -> Value
 setObjObject obj object@Object { } = object { objObject = obj }
 setObjObject _ x = x
 
-instance Show Value where
-    show Undefined = "undefined"
-    show Null      = "null"
-
-    show (Boolean True)  = "true"
-    show (Boolean False) = "false"
-
-    show (Number (Integer n)) = show n
-    show (Number (Double n))  = show n
-    show (Number NaN)         = "NaN"
-
-    show (String string) = show string
-
-    show (Object { objPropMap = propMap,
-                   objPrototype = prototype,
-                   objClass = klass,
-                   objValue = value,
-                   objName = name,
-                   objObject = obj,
-                   objGetter = getter }) =
-        "<Object" ++ (if null name then "" else " " ++ show name) ++
-            " {" ++ showMap propMap ++ "}" ++
-            " #prototype=" ++ showShallow prototype ++
-            " #class=" ++ show klass ++
-            " #value=" ++ show value ++
-            " #object=" ++ show obj ++
-            " #getter=" ++ showShallow getter ++ ">"
-        where showMap mapData =
-                  concat $ ", " `intersperse` map showPair (assocs mapData)
-              showPair (k, v) =
-                  k ++ ": " ++ show v
-
-    show (Reference baseRef p) = "<Reference " ++ show baseRef ++ " " ++ p ++ ">"
-
-    show (Ref refObj) = "<Ref " ++ (show $ unsafePerformIO $ readIORef refObj) ++ ">"
-
-    show Void = "<Void>"
-
-{-
-instance Eq Value where
-    Undefined == Undefined = True
-    Null == Null           = True
-    Undefined == Null      = True
-    Null == Undefined      = True
-
-    (Number n) == (Number m)   = n == m
-    (String s) == (String t)   = s == t
-    (Boolean a) == (Boolean b) = a == b
--}
-
-instance Show NativeObject where
-    show SimpleObject = ""
-    show (Function { funcParam = params, funcBody = body }) =
-        "<Function " ++ show params ++ " " ++ show body ++ ">"
-    show (NativeFunction { }) = "<NativeFunction>"
-    show (RegExp { regexpPattern = pattern }) = "<RegExp " ++ pattern ++ ">"
-    show (Array _) = "<Array>"
-    show ULObject = "<UL-Object>"
-
-showShallow :: Value -> String
-showShallow (Object { objName = "" })   = "<Object ...>"
-showShallow (Object { objName = name }) = name
-
-showShallow (Ref refObj)   = "<Ref " ++ (showShallow $ unsafePerformIO $ readIORef $ refObj) ++ ">"
-showShallow x = show x
-
 type NativeCode
     = Value -> [Value] -> Evaluate Value
 
@@ -265,13 +238,6 @@ instance Eq Number where
 data PropertyPair
     = PropertyPair { propValue :: Value, propAttr :: [PropertyAttribute] }
     deriving Eq
-
-instance Show PropertyPair where
-    show (PropertyPair { propValue = value, propAttr = [] }) =
-        showShallow value
-
-    show (PropertyPair { propValue = value, propAttr = attrs }) =
-        showShallow value ++ "(" ++ concat ("," `intersperse` map show attrs) ++ ")"
 
 mkProp :: Value -> [PropertyAttribute] -> PropertyPair
 mkProp = PropertyPair
@@ -373,6 +339,7 @@ nativeFuncPropMap =
     where convert (name, code, arity) =
               (name, nativeFunc name arity code, [DontEnum])
 
+-- 型の判別
 isUndefined :: Value -> Bool
 isUndefined Undefined = True
 isUndefined _ = False
@@ -475,3 +442,285 @@ instance ToValue String where
 instance ToValue Bool where
     toValue b = Boolean b
 
+-- Showing
+joinBy :: [String] -> String -> String
+joinBy strings sep = concat $ intersperse sep strings
+
+indent :: String -> String
+indent = unlines . (map ("    " ++)) . lines
+
+instance Show Statement where
+    show (STVarDef bindings) =
+        "var " ++ map showVarBinding bindings `joinBy` "," ++ ";"
+
+    show (STFuncDef name func) =
+        show $ nullObject { objName = name, objObject = func }
+    
+    show (STEmpty) = ";"
+
+    show (STExpression expr) = show expr ++ ";"
+
+    show (STBlock statements) = "{\n" ++ indent (unlines $ map show statements) ++ "}"
+
+    show (STLabelled label st) = label ++ ":\n" ++ show st
+
+    show (STIf cond thenSt Nothing) =
+        "if (" ++ show cond ++ ") " ++ show thenSt
+    show (STIf cond thenSt (Just elseSt)) =
+        "if (" ++ show cond ++ ") " ++ show thenSt ++ " else " ++ show elseSt
+    
+    show (STSwitch cond clauses) =
+        "switch (" ++ show cond ++ ") {\n" ++ indent (unlines $ map showSwitchClause clauses) ++ "\n}"
+
+    show (STDoWhile cond st) =
+        "do " ++ show st ++ "} while (" ++ show cond ++ ")"
+
+    show (STWhile cond st) =
+        "while (" ++ show cond ++ ") " ++ show st
+
+    show (STFor init cond upd block) =
+        "for (" ++ show init ++ " " ++ show cond ++ "; " ++  show upd ++ ") " ++ show block
+
+    show (STForIn binding object block) =
+        "for (" ++ show binding ++ " in " ++ show object ++ ") " ++ show block
+
+    show (STWith object block) =
+        "with (" ++ show object ++ ") " ++ show block
+
+    show (STContinue label) =
+        "continue" ++ maybe "" (" " ++) label ++ ";"
+
+    show (STBreak label) =
+        "break" ++ maybe "" (" " ++) label ++ ";"
+
+    show (STReturn expr) =
+        "return" ++ maybe "" ((" " ++) . show) expr ++ ";"
+
+    show (STThrow expr) =
+        "throw " ++ show expr
+
+    show (STTry try catch finally) =
+        "try " ++ show try ++ maybe "" (\(p, s) -> " catch (" ++ p ++ ") " ++ show s) catch ++ maybe "" ((" finally " ++) . show) finally
+
+showVarBinding (name, Nothing)   = name
+showVarBinding (name, Just expr) = name ++ " = " ++ show expr
+
+showSwitchClause (Nothing, st) = "default: " ++ show st
+showSwitchClause (Just l, st)  = "case " ++ show l ++ ": " ++ show st
+
+instance Show Expression where
+    showsPrec _ (Keyword keyword) = showString keyword
+    showsPrec _ (Punctuator op)   = showString op
+    showsPrec _ (Identifier name) = showString name
+
+    showsPrec _ (Literal value)   = shows value
+
+    showsPrec _ (ArrayLiteral exprs) = showString $ "[" ++ map show exprs `joinBy` "," ++ "]"
+
+    showsPrec _ (ObjectLiteral pairs) = showString $ "{" ++ map showObjPair pairs `joinBy` "," ++ "}"
+
+    showsPrec _ (RegExpLiteral pattern flags) = showString $ "/" ++ pattern ++ "/" ++ flags
+
+    showsPrec _ (List exprs) = showString $ map show exprs `joinBy` ","
+
+    showsPrec p (Operator op [x, y])    = showParen (prec < p)
+                                                    $ (showsPrec prec x)
+                                                    . (showString " ")
+                                                    . (showString op)
+                                                    . (showString " ")
+                                                    . (showsPrec prec y)
+                                        where prec = fromMaybe (length opPrecedence + 1) (findIndex (op `elem`) opPrecedence)
+
+    showsPrec p (Operator op xs)        = showParen (prec < p)
+                                                    $ (showString op)
+                                                    . (showString " ")
+                                                    . (showList xs)
+                                        where prec = fromMaybe (length opPrecedence + 1) (findIndex (op `elem`) opPrecedence)
+
+    showsPrec _ (Let left right) = showString $ show left ++ " = " ++ show right
+
+opPrecedence :: [[String]]
+opPrecedence = [
+        ["[]", "new"],
+        ["()"],
+        ["_++", "_--"],
+        ["delete", "void", "typeof", "++", "--", "+", "-", "~", "!"],
+        ["*", "/", "%"]
+    ]
+
+showObjPair (p, v) = show p ++ ": " ++ show v
+
+instance Show Value where
+    show Undefined = "undefined"
+    show Null      = "null"
+
+    show (Boolean True)  = "true"
+    show (Boolean False) = "false"
+
+    show (Number (Integer n)) = show n
+    show (Number (Double n))  = show n
+    show (Number NaN)         = "NaN"
+
+    show (String string) = show string
+
+    show (Object { objObject = RegExp { regexpPattern = pattern, regexpFlags = flags } }) =
+        "/" ++ pattern ++ "/" ++ flags
+
+    show (Object { objName = name, objObject = Function { funcParam = params, funcBody = body } }) =
+        "function" ++ (if null name then "" else " " ++ name) ++ "(" ++ params `joinBy` "," ++ ") " ++ show body
+
+    show _ =
+        ""
+
+-- Inspecting
+class Inspect a where
+    inspect :: a -> String
+
+instance Inspect Char where
+    inspect ch = [ch]
+
+instance Inspect a => Inspect [a] where
+    inspect xs = show $ map inspect xs
+
+instance Inspect a => Inspect (Maybe a) where
+    inspect (Just a) = "Just " ++ inspect a
+    inspect Nothing  = "Nothing"
+
+instance (Inspect a, Inspect b) => Inspect (a, b) where
+    inspect (a, b) = "(" ++ inspect a ++ "," ++ inspect b ++ ")"
+
+instance Inspect PropertyPair where
+    inspect (PropertyPair { propValue = value, propAttr = [] }) =
+        inspectShallow value
+
+    inspect (PropertyPair { propValue = value, propAttr = attrs }) =
+        inspectShallow value ++ "(" ++ (map show attrs `joinBy` ",") ++ ")"
+
+instance Inspect Value where
+    inspect Undefined = "undefined"
+    inspect Null      = "null"
+
+    inspect (Boolean True)  = "true"
+    inspect (Boolean False) = "false"
+
+    inspect (Number (Integer n)) = show n
+    inspect (Number (Double n))  = show n
+    inspect (Number NaN)         = "NaN"
+
+    inspect (String string) = show string
+
+    inspect (Object { objPropMap = propMap,
+                      objPrototype = prototype,
+                      objClass = klass,
+                      objValue = value,
+                      objName = name,
+                      objObject = obj,
+                      objGetter = getter }) =
+        "<Object" ++ (if null name then "" else " " ++ name) ++
+            " {" ++ showMap propMap ++ "}" ++
+            " #prototype=" ++ inspectShallow prototype ++
+            " #class=" ++ klass ++
+            " #value=" ++ inspect value ++
+            " #object=" ++ inspect obj ++
+            " #getter=" ++ inspectShallow getter ++ ">"
+        where showMap mapData =
+                  map showPair (assocs mapData) `joinBy` ","
+              showPair (k, v) =
+                  k ++ ": " ++ inspect v
+
+    inspect (Reference baseRef p) = "<Reference " ++ inspect baseRef ++ " " ++ p ++ ">"
+
+    inspect (Ref refObj) = "<Ref " ++ (inspect $ unsafePerformIO $ readIORef refObj) ++ ">"
+
+    inspect Void = "<Void>"
+
+instance Inspect NativeObject where
+    inspect SimpleObject = ""
+
+    inspect (Function { funcParam = params, funcBody = body }) =
+        "<Function" ++ (concat $ map (' ':) params) ++ " " ++ inspect body ++ ">"
+
+    inspect (NativeFunction { }) = "<NativeFunction>"
+
+    inspect (RegExp { regexpPattern = pattern }) = "<RegExp " ++ pattern ++ ">"
+
+    inspect (Array _) = "<Array>"
+
+    inspect ULObject = "<UL-Object>"
+
+instance Inspect Expression where
+    inspect (Keyword keyword)   = "Keyword " ++ keyword
+
+    inspect (Punctuator punc)   = "Punctuator " ++ punc
+
+    inspect (Identifier ident)  = "Identifier " ++ ident
+
+    inspect (Literal value)     = "Literal " ++ inspect value
+
+    inspect (ArrayLiteral exprs)        = "ArrayLiteral [" ++ (map inspect exprs `joinBy` ",") ++ "]"
+
+    inspect (ObjectLiteral pairs)       = "ObjectLiteral " ++ show pairs
+
+    inspect (RegExpLiteral pat flags)   = "RegExpLiteral " ++ pat ++ " " ++ flags
+
+    inspect (List exprs)        = "List [" ++ (map inspect exprs `joinBy` ",") ++ "]"
+
+    inspect (Operator op args)  = "Operator " ++ op ++ " [" ++ (map inspect args `joinBy` ",") ++ "]"
+
+    inspect (Let left right)    = "Let " ++ inspect left ++ " " ++ inspect right
+
+instance Inspect Statement where
+    inspect (STVarDef { varDefBindings = bindings })
+        = "STVarDef " ++ show bindings
+
+    inspect (STFuncDef { funcDefName = name, funcDefFunc = func })
+        = "STFuncDef " ++ name ++ "\n" ++ inspect func
+
+    inspect STEmpty                 = "STEmpty"
+
+    inspect (STExpression expr)     = "STExpression " ++ inspect expr
+
+    inspect (STBlock sts)           = "STBlock " ++ show sts
+
+    inspect (STLabelled label st)   = "STLabelled " ++ label ++ " " ++ inspect st
+
+    inspect (STIf { ifCond = expr, ifThen = thenSt, ifElse = elseSt })
+        = "STIf " ++ inspect expr ++ "\n" ++ inspect thenSt ++ maybe "" (("\n" ++) . inspect) elseSt
+
+    inspect (STSwitch { swExpression = expr, swClauses = clauses })
+        = "STSwitch " ++ inspect expr ++ inspect clauses
+
+    inspect (STDoWhile expr st)     = "STDoWhile " ++ inspect expr ++ inspect st
+
+    inspect (STWhile expr st)       = "STWhile " ++ inspect expr ++ inspect st
+
+    inspect (STFor { forInitialize = init, forCondition = cond, forUpdate = update, forBlock = block })
+        = "STFor " ++ inspect init ++ inspect cond ++ inspect update ++ inspect block
+
+    inspect (STForIn { forBinding = binding, forObject = obj, forBlock = block })
+        = "STForIn " ++ inspect binding ++ inspect obj ++ inspect block
+
+    inspect (STWith { withExpression = expr, withBlock = block })
+        = "STWith " ++ inspect expr ++ inspect block
+
+    inspect (STContinue label)
+        = "STContinue" ++ fromMaybe "" label
+
+    inspect (STBreak label)
+        = "STBreak" ++ fromMaybe "" label
+
+    inspect (STReturn expr)
+        = "STReturn" ++ maybe "" inspect expr
+
+    inspect (STThrow expr)
+        = "STThrow " ++ inspect expr
+
+    inspect (STTry { tryClause = clause, tryCatchClause = catch, tryFinallyClause = finally })
+        = "STTry " ++ inspect clause ++ inspect catch ++ inspect finally
+
+inspectShallow :: Value -> String
+inspectShallow (Object { objName = "" })   = "<Object ...>"
+inspectShallow (Object { objName = name }) = name
+
+inspectShallow (Ref refObj)   = "<Ref " ++ (inspectShallow $ unsafePerformIO $ readIORef $ refObj) ++ ">"
+inspectShallow x = show x

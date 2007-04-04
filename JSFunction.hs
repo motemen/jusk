@@ -12,7 +12,6 @@ import Maybe
 import DataTypes
 import Eval hiding(callMethod)
 import Internal
-import PrettyShow
 import JSType
 
 -- Function.prototype
@@ -29,7 +28,7 @@ toStringMethod :: NativeCode
 toStringMethod this _ =
     do this <- readRef this
        if isFunction this || isNativeFunction this
-          then return $ toValue $ prettyShow this
+          then return $ toValue $ show this
           else throw "TypeError" $ "Function.prototype.toString: " ++ getName this ++ " is not a function"
 
 -- Function

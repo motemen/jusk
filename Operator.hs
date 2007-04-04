@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
-module Operator (Operator (..), operatorsTable, comparisonOp) where
+module Operator (OperatorDef (..), operatorsTable, comparisonOp) where
 import Monad
 import Data.Bits
 
@@ -8,10 +8,10 @@ import DataTypes
 import Eval
 import Internal
 
-data Operator = Unary   { opName :: String, opUnaryFunc :: Value -> Evaluate Value }
-              | Binary  { opName :: String, opBinaryFunc :: Value -> Value -> Evaluate Value }
+data OperatorDef = Unary   { opName :: String, opUnaryFunc :: Value -> Evaluate Value }
+                 | Binary  { opName :: String, opBinaryFunc :: Value -> Value -> Evaluate Value }
 
-operatorsTable :: [Operator]
+operatorsTable :: [OperatorDef]
 operatorsTable = [
         Unary "typeof" $ typeOf,
 

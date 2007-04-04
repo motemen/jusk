@@ -11,7 +11,6 @@ import Parser (numericLiteral)
 import ParserUtil (runLex)
 import Internal
 import Eval
-import PrettyShow
 
 toPrimitive :: Value -> String -> Evaluate Value
 toPrimitive Undefined _ =
@@ -175,7 +174,7 @@ toSource (Number (Double n))  = return $ show n
 toSource (Number NaN)         = return "NaN"
 
 toSource func@Object { objObject = Function { } } =
-    return $ prettyShow func
+    return $ show func
     
 toSource Object { objName = name, objObject = NativeFunction { } } =
     return $ "function " ++ name ++ "() { [native code] }"
