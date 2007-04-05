@@ -523,18 +523,35 @@ instance Show Expression where
 
     showsPrec _ (List exprs) = showString $ map show exprs `joinBy` ","
 
+    showsPrec _ (Operator "[]" [obj, Literal (String p)])   = shows obj . showString "." . showString p
+
+    showsPrec _ (Operator "[]" [obj, p])                    = shows obj . showString "[" . shows p . showString "]"
+
+    showsPrec _ (Operator "()" (c:args))    = shows c
+                                              . showParen True
+                                                          (if null args
+                                                              then id
+                                                              else foldl1 (\x y -> x . showString "," . y) $ map shows args)
+
+    showsPrec _ (Operator "new" (c:args))   = showString "new "
+                                              . shows c
+                                              . (if null args
+                                                    then id
+                                                    else showParen True
+                                                                   (foldl1 (\x y -> x . showString "," . y) $ map shows args))
+
     showsPrec p (Operator op [x, y])    = showParen (prec < p)
-                                                    $ (showsPrec prec x)
-                                                    . (showString " ")
-                                                    . (showString op)
-                                                    . (showString " ")
-                                                    . (showsPrec prec y)
+                                                    $ showsPrec prec x
+                                                    . showString " "
+                                                    . showString op
+                                                    . showString " "
+                                                    . showsPrec prec y
                                         where prec = fromMaybe (length opPrecedence + 1) (findIndex (op `elem`) opPrecedence)
 
     showsPrec p (Operator op xs)        = showParen (prec < p)
-                                                    $ (showString op)
-                                                    . (showString " ")
-                                                    . (showList xs)
+                                                    $ showString op
+                                                    . showString " "
+                                                    . showList xs
                                         where prec = fromMaybe (length opPrecedence + 1) (findIndex (op `elem`) opPrecedence)
 
     showsPrec _ (Let left right) = showString $ show left ++ " = " ++ show right
@@ -657,11 +674,14 @@ instance Inspect Expression where
 
     inspect (Literal value)     = "Literal " ++ inspect value
 
-    inspect (ArrayLiteral exprs)        = "ArrayLiteral [" ++ (map inspect exprs `joinBy` ",") ++ "]"
+    inspect (ArrayLiteral exprs)
+        = "ArrayLiteral [" ++ (map inspect exprs `joinBy` ",") ++ "]"
 
-    inspect (ObjectLiteral pairs)       = "ObjectLiteral " ++ show pairs
+    inspect (ObjectLiteral pairs)
+        = "ObjectLiteral " ++ show pairs
 
-    inspect (RegExpLiteral pat flags)   = "RegExpLiteral " ++ pat ++ " " ++ flags
+    inspect (RegExpLiteral pat flags)
+        = "RegExpLiteral " ++ pat ++ " " ++ flags
 
     inspect (List exprs)        = "List [" ++ (map inspect exprs `joinBy` ",") ++ "]"
 

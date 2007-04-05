@@ -12,3 +12,6 @@ tags: $(SRC)
 
 clean:
 	rm *.hi *.o *.exe js
+
+test:
+	./js -e "load('../t/mochikit-test.js')"

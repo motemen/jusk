@@ -30,7 +30,11 @@ runRepl' =
        value <- evalWithMoreInput line
        unless (isVoid value || isUndefined value)
               (do string <- toString value
-                  liftIO $ putStrLn string)
+                  liftIO $ putStrLn string
+                  env <- getEnv
+                  when (Debug `elem` (envFlags env))
+                       (liftIO $ putStrLn $ inspect value) 
+                  )
        runRepl'
        where evalWithMoreInput input =
                  do case parse input of

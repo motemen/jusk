@@ -82,16 +82,16 @@ setupEnv =
                     defineVar name constructor
 
 defineBuiltInFuncs =
-    do defineVar "eval"      (nativeFunc "eval"      1 evalFunc)
-       defineVar "encodeURIComponent" (nativeFunc "encodeURIComponent" 1 encodeURIComponent)
+    do defineVar "encodeURIComponent" (nativeFunc "encodeURIComponent" 1 encodeURIComponent)
        defineVar "decodeURIComponent" (nativeFunc "decodeURIComponent" 1 decodeURIComponent)
-       defineVar "load"      (nativeFunc "load"      1 load)
-       defineVar "exit"      (nativeFunc "exit"      0 exit)
-       defineVar "print"     (nativeFunc "print"     1 printLn)
-       defineVar "__p__"     (nativeFunc "__p__"     1 printNative)
-       defineVar "__env__"   (mkObjWithGetter env)
-       defineVar "__break__" (mkObjWithGetter break)
-       defineVar "__proto__" (nativeFunc "__proto__" 1 getProto)
+       defineVar "eval"         (nativeFunc "eval"      1 evalFunc)
+       defineVar "load"         (nativeFunc "load"      1 load)
+       defineVar "exit"         (nativeFunc "exit"      0 exit)
+       defineVar "print"        (nativeFunc "print"     1 printLn)
+       defineVar "__env__"      (mkObjWithGetter env)
+       defineVar "__break__"    (mkObjWithGetter break)
+       defineVar "__inspect__"  (nativeFunc "__inspect__"   1 nativeInspect)
+       defineVar "__proto__"    (nativeFunc "__proto__"     1 getProto)
        
 mkObjWithGetter getter =
     nullObject {
@@ -128,8 +128,8 @@ printLn _ (x:_) =
        liftIO $ putStrLn string
        return Undefined
 
-printNative _ (x:_) =
-    do liftIO $ print x
+nativeInspect _ (x:_) =
+    do liftIO $ putStrLn $ inspect x
        return Undefined
 
 env _ _ =
