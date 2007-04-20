@@ -270,8 +270,8 @@ data ContType
     | CExit
     deriving (Eq, Show)
 
-instance Show (a -> b) where
-    show _ = ""
+-- instance Show (a -> b) where
+--     show _ = ""
 
 instance Show a => Show (IORef a) where
     show x = "IORef " ++ (show $ unsafePerformIO $ readIORef x)

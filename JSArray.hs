@@ -57,6 +57,7 @@ concatMethod this args =
             Object { objObject = Array array } ->
                 do args <- mapM readRef args
                    makeRef $ makeArray (concatArgs array args)
+            _ -> throw "NotImplemented" $ "Array.prototype.concat: " ++ show this
     where concatArgs array [] =
               array
           concatArgs array ((Object { objObject = Array array' }):xs) =
@@ -73,6 +74,7 @@ join this args =
             Object { objObject = Array array } ->
                 do strs <- mapM toString array
                    return $ toValue $ concat $ intersperse delim strs
+            _ -> throw "NotImplemented" $ "Array.prototype.join: " ++ show this
 
 -- Array.prototype.pop
 pop :: NativeCode
@@ -229,6 +231,12 @@ splice thisRef (start:count:items) =
                     then return $ max (pos + length) 0
                     else return $ min pos length
 
+splice thisRef [start] =
+    splice thisRef [start, Undefined]
+
+splice _ [] =
+    return Undefined
+
 -- Array.prototype.toString
 toStringMethod :: NativeCode
 toStringMethod this _ = join this []
@@ -241,3 +249,4 @@ toSourceMethod this _ =
             Object { objObject = Array array }
                 -> do srcArray <- mapM (\o -> callMethod o "toSource" [] >>= toString) array
                       return $ toValue $ "[" ++ (concat $ intersperse "," srcArray) ++ "]"
+            _ -> throw "NotImplemented" $ "Array.prototype.toSource: " ++ show this

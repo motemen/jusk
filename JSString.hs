@@ -69,23 +69,27 @@ valueOfMethod this _ =
 charAt :: NativeCode
 charAt this [] = charAt this [Undefined]
 
-charAt this (pos:_) =
+charAt this args@(pos:_) =
     do pos <- toInt pos
        this <- readRef this
-       return $ case this of
-                     _ | pos < 0 -> String ""
-                     String string -> String $ if pos >= length string then "" else [string !! pos]
+       case this of
+            _ | pos < 0   -> return $ String ""
+            String string -> return $ String $ if pos >= length string then "" else [string !! pos]
+            object -> do string <- toString object
+                         charCodeAt (String string) args
 
 -- String.prototype.charCodeAt
 charCodeAt :: NativeCode
 charCodeAt this [] = charCodeAt this [Undefined]
 
-charCodeAt this (pos:_) =
+charCodeAt this args@(pos:_) =
     do pos <- toInt pos
        this <- readRef this
-       return $ case this of
-                     _ | pos < 0 -> Number NaN
-                     String string -> if pos >= length string then Number NaN else toValue $ ord (string !! pos)
+       case this of
+            _ | pos < 0   -> return $ Number NaN
+            String string -> return $ if pos >= length string then Number NaN else toValue $ ord (string !! pos)
+            object -> do string <- toString object
+                         charCodeAt (String string) args
 
 -- String.prototype.replace
 replace :: NativeCode
@@ -130,15 +134,22 @@ replace this (searchValue:replaceValue:_) =
                     inDoller (d:cs)    s
                         | isDigit d = loop cs (s ++ submatch .!!. (read [d] - 1))
                         | otherwise = loop cs (s ++ [d])
+                    inDoller []        s = s ++ "$"
                     xs .!!. n | n < 0 || length xs <= n = ""
                               | otherwise               = xs !! n
+
+replace this [searchValue] =
+    replace this [searchValue, Undefined]
+
+replace this [] =
+    return this
 
 -- String.prototype.split
 split :: NativeCode
 split this [] =
     liftM String $ toString this
 
-split this [separator] =
+split this (separator:_) =
     do string <- toString this
        separator <- readRef separator
        case separator of
@@ -146,6 +157,7 @@ split this [separator] =
                 return $ makeArray $ map String $ splitRegex regex string
             _ -> do regexp <- new "RegExp" [separator]
                     split this [regexp]
+                    
 
 -- String.prototype.substring
 substring :: NativeCode

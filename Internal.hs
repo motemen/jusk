@@ -74,6 +74,9 @@ getProp object@Object { objValue = value } p | not $ isNull value =
                                                 (flip getProp p))
               (lift . return)
 
+getProp Object { objPrototype = proto } "__proto__" =
+    return proto
+
 getProp ref@Reference { } p =
     flip getProp p =<< getValue ref
     
@@ -93,6 +96,10 @@ putProp ref@(Ref _) p pair =
        ifM (canPut object p)
            (modifyValue ref $ insertProp p pair)
            (return ())
+
+putProp ref@(Ref _) "__proto__" (proto, _) =
+    modifyValue ref $ setObjProto proto
+
 putProp Void name (value, _) =
     setVar name value >> return ()
 

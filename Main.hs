@@ -5,9 +5,9 @@
 -}
 
 module Main where
-import IO hiding(try)
+import IO hiding (try)
 import List
-import System.Environment hiding(getEnv)
+import System.Environment hiding (getEnv)
 import System.Console.GetOpt
 import Control.Monad.State
 import Control.Monad.Cont
@@ -64,8 +64,8 @@ parseOpts :: [String] -> IO ([Flag], [String])
 parseOpts argv =
     case getOpt Permute options argv of
          (o, n, [])   -> return (o, n)
-         (_, _, errs) -> ioError $ userError $ concat errs ++ usageInfo header options
-    where header = "Usage: jusk [OPTION...] [file]"
+         (_, _, errs) -> do progName <- getProgName
+                            ioError $ userError $ concat errs ++ usageInfo ("Usage: " ++ progName ++ " [OPTION...] [file]") options
 
 printVersion :: IO ()
 printVersion =

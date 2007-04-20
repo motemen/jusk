@@ -128,9 +128,15 @@ printLn _ (x:_) =
        liftIO $ putStrLn string
        return Undefined
 
+printLn _ _ =
+    printLn undefined [Undefined]
+
 nativeInspect _ (x:_) =
     do liftIO $ putStrLn $ inspect x
        return Undefined
+
+nativeInspect _ _ =
+    nativeInspect undefined [Undefined]
 
 env _ _ =
     do env <- getEnv
