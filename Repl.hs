@@ -32,15 +32,13 @@ runRepl' =
               (do string <- toString value
                   liftIO $ putStrLn string
                   env <- getEnv
-                  when (Debug `elem` (envFlags env))
-                       (liftIO $ putStrLn $ inspect value) 
-                  )
+                  when (Debug `elem` envFlags env)
+                       (liftIO $ putStrLn $ inspect value))
        runRepl'
        where evalWithMoreInput input =
-                 do case parse input of
-                         Left err | isErrorAtEnd input err
-                                    -> do line <- liftIO (putStr "**> " >> hFlush stdout >> getLine)
-                                          evalWithMoreInput $ input ++ "\n" ++ line
-                         Left err | otherwise -> liftIO $ printParseError input err
-                         Right program -> evalProgram program
-
+                 case parse input of
+                      Left err | isErrorAtEnd input err
+                                 -> do line <- liftIO (putStr "**> " >> hFlush stdout >> getLine)
+                                       evalWithMoreInput $ input ++ "\n" ++ line
+                      Left err | otherwise -> liftIO $ printParseError input err
+                      Right program -> evalProgram program

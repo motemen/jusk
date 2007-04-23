@@ -122,7 +122,7 @@ warn message =
 debug :: String -> Evaluate ()
 debug message =
     do env <- getEnv
-       if Debug `elem` (envFlags env)
+       if Debug `elem` envFlags env
           then liftIO $ putStrLn $ "debug: " ++ (take ((length $ envContStack env) * 2 - 4) $ repeat ' ') ++ message
           else return ()
 

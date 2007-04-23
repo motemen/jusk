@@ -24,9 +24,9 @@ ePutStrLn = hPutStrLn stderr
 evalProgram :: JavaScriptProgram -> Evaluate Value
 evalProgram program =
     do env <- getEnv
-       if null program || ParseOnly `elem` (envFlags env)
+       if null program || ParseOnly `elem` envFlags env
           then return Void
-          else if (Debug `elem` (envFlags env))
+          else if (Debug `elem` envFlags env)
                   then liftM last $ mapM (\e -> do { liftIO $ ePutStrLn $ inspect e; eval e }) program
                   else liftM last $ mapM eval program
 

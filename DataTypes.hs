@@ -535,12 +535,12 @@ instance Show Expression where
         . showString p
 
     showsPrec _ (Operator "[]" [obj, Literal (String p)])
-        = shows obj
+        = showsPrec (length opPrecedence) obj
         . showString "."
         . showString p
 
     showsPrec _ (Operator "[]" [obj, p])
-        = shows obj
+        = showsPrec (length opPrecedence) obj
         . showString "["
         . shows p
         . showString "]"
@@ -567,14 +567,14 @@ instance Show Expression where
         . showString op
         . showString " "
         . showsPrec prec y
-        where prec = fromMaybe (length opPrecedence + 1) (findIndex (op `elem`) opPrecedence)
+        where prec = fromMaybe (length opPrecedence) (findIndex (op `elem`) opPrecedence)
 
     showsPrec p (Operator op xs)
         = showParen (prec < p)
         $ showString op
         . showString " "
         . showList xs
-        where prec = fromMaybe (length opPrecedence + 1) (findIndex (op `elem`) opPrecedence)
+        where prec = fromMaybe (length opPrecedence) (findIndex (op `elem`) opPrecedence)
 
     showsPrec _ (Let left right) = showString $ show left ++ " = " ++ show right
 
@@ -584,7 +584,8 @@ opPrecedence = [
         ["()"],
         ["_++", "_--"],
         ["delete", "void", "typeof", "++", "--", "+", "-", "~", "!"],
-        ["*", "/", "%"]
+        ["*", "/", "%"],
+        ["+", "-"]
     ]
 
 showObjPair (p, v) = show p ++ ": " ++ show v
