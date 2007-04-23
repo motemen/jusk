@@ -7,7 +7,7 @@
 module Context (module Context, System.Mem.performGC) where
 import System.Mem
 import Control.Monad.State
-import Control.Monad.Cont hiding(Cont)
+import Control.Monad.Cont hiding (Cont)
 
 import DataTypes
 

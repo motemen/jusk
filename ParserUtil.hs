@@ -5,8 +5,8 @@
 
 module ParserUtil where
 import List
-import IO hiding(try)
-import Text.ParserCombinators.Parsec hiding(Parser)
+import IO hiding (try)
+import Text.ParserCombinators.Parsec hiding (Parser)
 import Text.ParserCombinators.Parsec.Pos
 import Text.ParserCombinators.Parsec.Error
 import Data.Char (digitToInt)

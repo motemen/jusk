@@ -10,7 +10,7 @@ import IO
 import List
 import Maybe
 import qualified Data.Map as Map
-import Control.Monad.Cont hiding(Cont)
+import Control.Monad.Cont hiding (Cont)
 
 import DataTypes
 import {-# SOURCE #-} Operator

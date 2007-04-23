@@ -5,7 +5,7 @@
 -}
 
 module JSString where
-import Prelude hiding(toInteger)
+import Prelude hiding (toInteger)
 import Monad
 import Maybe
 import Data.Char
@@ -21,15 +21,17 @@ import JSType
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = nativeFuncPropMap [("toString",    toStringMethod, 0),
-                                        ("valueOf",     valueOfMethod,  0),
-                                        ("charAt",      charAt,         1),
-                                        ("charCodeAt",  charCodeAt,     1),
-                                        ("replace",     replace,        2),
-                                        ("split",       split,          2),
-                                        ("substring",   substring,      2),
-                                        ("toLowerCase", toLowerCase,    0),
-                                        ("toUpperCase", toUpperCase,    0)]
+        objPropMap = nativeFuncPropMap [
+                ("toString",    toStringMethod, 0),
+                ("valueOf",     valueOfMethod,  0),
+                ("charAt",      charAt,         1),
+                ("charCodeAt",  charCodeAt,     1),
+                ("replace",     replace,        2),
+                ("split",       split,          2),
+                ("substring",   substring,      2),
+                ("toLowerCase", toLowerCase,    0),
+                ("toUpperCase", toUpperCase,    0)
+            ]
     }
 
 -- String()

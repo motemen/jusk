@@ -5,9 +5,9 @@
 -}
 
 module JSArray where
-import Prelude hiding(toInteger)
-import Monad hiding(join)
-import List(intersperse)
+import Prelude hiding (toInteger)
+import Monad hiding (join)
+import List (intersperse)
 
 import DataTypes
 import Internal
@@ -18,19 +18,21 @@ import Operator
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = nativeFuncPropMap [("constructor", constructor,    1),
-                                        ("toString",    toStringMethod, 0),
-                                        ("toSource",    toSourceMethod, 0),
-                                        ("concat",      concatMethod,   1),
-                                        ("join",        join,           1),
-                                        ("pop",         pop,            0),
-                                        ("push",        push,           1),
-                                        ("shift",       shift,          0),
-                                        ("reverse",     reverseMethod,  0),
-                                        ("slice",       slice,          2),
-                                        ("sort",        sort,           1),
-                                        ("splice",      splice,         2),
-                                        ("unshift",     unshift,        1)]
+        objPropMap = nativeFuncPropMap [
+                ("constructor", constructor,    1),
+                ("toString",    toStringMethod, 0),
+                ("toSource",    toSourceMethod, 0),
+                ("concat",      concatMethod,   1),
+                ("join",        join,           1),
+                ("pop",         pop,            0),
+                ("push",        push,           1),
+                ("shift",       shift,          0),
+                ("reverse",     reverseMethod,  0),
+                ("slice",       slice,          2),
+                ("sort",        sort,           1),
+                ("splice",      splice,         2),
+                ("unshift",     unshift,        1)
+            ]
     }
 
 makeArray :: [Value] -> Value

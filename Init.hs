@@ -4,7 +4,7 @@
 -}
 
 module Init where
-import Prelude hiding(break)
+import Prelude hiding (break)
 import IO
 import Control.Monad.State
 import Data.IORef

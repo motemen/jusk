@@ -28,7 +28,7 @@ import Maybe
 import DataTypes
 import Context
 import Eval
-import ParserUtil (natural,runLex)
+import ParserUtil (natural, runLex)
 
 -- http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/8_Types.html#section-8.6
 
@@ -91,14 +91,14 @@ getProp object p =
 
 -- [[Put]]
 putProp :: Value -> String -> (Value, [PropertyAttribute]) -> Evaluate ()
+putProp ref@(Ref _) "__proto__" (proto, _) =
+    modifyValue ref $ setObjProto proto
+
 putProp ref@(Ref _) p pair =
     do object <- readRef ref
        ifM (canPut object p)
            (modifyValue ref $ insertProp p pair)
            (return ())
-
-putProp ref@(Ref _) "__proto__" (proto, _) =
-    modifyValue ref $ setObjProto proto
 
 putProp Void name (value, _) =
     setVar name value >> return ()

@@ -5,7 +5,7 @@
 -}
 
 module JSObject where
-import qualified Data.Map as Map hiding(map)
+import qualified Data.Map as Map hiding (map)
 import List
 import Monad
 
@@ -18,9 +18,11 @@ import JSType
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = nativeFuncPropMap [("toString", toStringMethod, 0),
-                                        ("valueOf",  valueOf,        0),
-                                        ("toSource", toSourceMethod, 0)],
+        objPropMap = nativeFuncPropMap [
+                ("toString", toStringMethod, 0),
+                ("valueOf",  valueOf,        0),
+                ("toSource", toSourceMethod, 0)
+            ],
         objClass = "Object",
         objObject = ULObject
     }

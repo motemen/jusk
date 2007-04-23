@@ -4,7 +4,7 @@
 -}
 
 module JSType where
-import Prelude hiding(toInteger)
+import Prelude hiding (toInteger)
 
 import DataTypes
 import Parser (numericLiteral)

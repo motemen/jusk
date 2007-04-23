@@ -15,10 +15,12 @@ import Internal
 prototypeObject :: Value
 prototypeObject =
     nullObject {
-        objPropMap = nativeFuncPropMap [("constructor", constructor,    7),
-                                        ("toString",    toStringMethod, 0),
-                                        ("valueOf",     valueOf,        1),
-                                        ("getTime",     getTime,        1)]
+        objPropMap = nativeFuncPropMap [
+                ("constructor", constructor,    7),
+                ("toString",    toStringMethod, 0),
+                ("valueOf",     valueOf,        1),
+                ("getTime",     getTime,        1)
+            ]
     }
 
 -- Date()
