@@ -26,12 +26,6 @@ run flags thunk =
        (withCC CExit $ setupEnv >> thunk >> return Void) `runContT` (const $ return Void) `evalStateT` nullEnv
        return ()
 
-try :: Evaluate a -> Evaluate ()
-try thunk =
-    do e <- withCC CThrow $ do { thunk; return Void }
-       unless (isVoid e)
-              (toString e >>= liftIO . ePutStrLn)
-
 runRepl :: [Flag] -> IO ()
 runRepl flags =
     run flags runReplWithTry

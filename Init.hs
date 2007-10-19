@@ -30,7 +30,7 @@ import Repl
 nullEnv :: [Flag] -> IO Env
 nullEnv flags =
     do global <- liftM Ref $ newIORef $ nullObject { objClass = "Global", objPrototype = Object.prototypeObject }
-       return $ Env { envFrames = [GlobalFrame global global], envContStack = [], envFlags = flags }
+       return $ Env { envFrames = [GlobalFrame global global], envContStack = [], envFlags = flags, envEvaluatee = undefined }
 
 setupEnv :: Evaluate ()
 setupEnv =

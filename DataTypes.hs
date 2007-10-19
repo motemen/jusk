@@ -36,16 +36,18 @@ type Evaluate a
     = ContT Value (StateT Env IO) a
 
 data Env
-    = Env { envFrames :: [Frame], envContStack :: [Cont], envFlags :: [Flag] }
+    = Env { envFrames :: [Frame], envContStack :: [Cont], envFlags :: [Flag], envEvaluatee :: Expression }
 
 instance Show Env where
-    show (Env { envFrames = frames, envContStack = conts, envFlags = flags }) =
+    show (Env { envFrames = frames, envContStack = conts, envFlags = flags, envEvaluatee = evaluatee }) =
         "  Frames:\n" ++
         (unlines $ map ("    " ++) $ map show frames) ++
         "  Cont:\n" ++
         (unlines $ map ("    " ++) $ map show conts) ++
         "  Flags:\n    " ++
-        (unwords $ map show flags)
+        (unwords $ map show flags) ++
+        "  Evaluatee:\n    " ++
+        show evaluatee
 
 data Frame
     = GlobalFrame { frObject :: Value, frThis :: Value }
@@ -399,6 +401,10 @@ isPrimitive (Boolean _) = True
 isPrimitive (Number _)  = True
 isPrimitive (String _)  = True
 isPrimitive _           = False
+
+isLiteral :: Expression -> Bool
+isLiteral (Literal _) = True
+isLiteral _           = False
 
 typeString :: Value -> String
 typeString Undefined    = "undefined"

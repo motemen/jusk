@@ -11,6 +11,8 @@ import List
 import Maybe
 import qualified Data.Map as Map
 import Control.Monad.Cont hiding (Cont)
+import Control.Monad.State (put)
+import System.IO.Unsafe
 
 import DataTypes
 import {-# SOURCE #-} Operator
@@ -189,107 +191,114 @@ evalValue x = getValue =<< eval x
 
 -- Reference (Ref baseRef, p) の形になるまで評価する
 instance Eval Expression where
-    eval (Identifier name) =
-        do frame <- liftM2 fromMaybe (liftM frObject currentFrame) (getVarFrameObject name)
-           return $ Reference frame name
-    
-    eval (Keyword "this") =
-        getThis
-    
-    eval (Operator "[]" [base, p]) =
-        do objRef <- getValue =<< eval base
-           prop <- toString =<< getValue =<< eval p
-           return $ Reference objRef prop
-    
-    eval (Operator "()" (callee:args)) =
-        do callee <- eval callee
-           mapM evalValue args >>= call callee
-    
-    eval (Operator "new" (klass:args)) =
-        do klass <- getValue =<< eval klass
-           args <- mapM evalValue args
-           construct klass args
-    
-    eval (Operator "++" [x]) =
-        eval $ Let x (Operator "+" [x, Literal $ Number $ Integer 1])
-
-    eval (Operator "_++" [x]) =
-        do value <- readRef =<< evalValue x
-           eval $ Operator "++" [x]
-           return value
-
-    eval (Operator "--" [x]) =
-        eval $ Let x (Operator "-" [x, Literal $ Number $ Integer 1])
-
-    eval (Operator "_--" [x]) =
-        do value <- readRef =<< evalValue x
-           eval $ Operator "--" [x]
-           return value
-
-    eval (Operator "&&" [a, b]) =
-        ifM (toBoolean =<< eval a)
-            (eval b)
-            (eval a)
-
-    eval (Operator "||" [a, b]) =
-        ifM (toBoolean =<< eval a)
-            (eval a)
-            (eval b)
-
-    eval (Operator "?:" [c, t, e]) =
-        ifM (toBoolean =<< eval c)
-            (eval t)
-            (eval e)
-
-    eval (Operator op exprs) =
-        if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
-           then eval $ Let (head exprs) (Operator (init op) (tail exprs))
-           else do args <- mapM eval exprs
-                   evalOperator op args
-    
-    eval (ArrayLiteral exprs) =
-        do items <- mapM evalValue exprs
-           makeNewArray items
-    
-    eval (ObjectLiteral pairs) =
-        do object <- makeNewObject
-           forM pairs $ \(n,e) -> do
-                n <- toString =<< eval n
-                p <- getValue =<< eval e
-                object ! n <~ p
-           return object
-
-    eval (RegExpLiteral pattern flags) =
-        new "RegExp" [String pattern, String flags]
-    
-    eval (List []) =
-        return Void
-    
-    eval (List exprs) =
-        liftM last $ mapM evalValue exprs
-    
-    eval (Let left right) =
-        do left <- eval left
-           value <- getValue =<< eval right
-           putValue left value
-           return value
-    
-    eval (Literal num@(Number _)) =
-        return $ tidyNumber num
-    
-    eval (Literal obj@Object { objObject = func@Function { } }) =
-        do frames <- liftM envFrames getEnv
-           protoObj <- makeNewObject
-           return $ obj {
-                   objPropMap = mkPropMap [("prototype", protoObj, [])],
-                   objObject = func { funcScope = frames }
-                }
-
-    eval (Literal value) =
-        return value
-    
     eval expr =
-        return $ String $ show expr
+        do env <- getEnv
+           unless (isLiteral expr)
+                  (do put env { envEvaluatee = expr }
+                      debug $ show expr)
+           eval' expr
+        where
+            eval' (Identifier name) =
+                do frame <- liftM2 fromMaybe (liftM frObject currentFrame) (getVarFrameObject name)
+                   return $ Reference frame name
+            
+            eval' (Keyword "this") =
+                getThis
+            
+            eval' (Operator "[]" [base, p]) =
+                do objRef <- getValue =<< eval base
+                   prop <- toString =<< getValue =<< eval p
+                   return $ Reference objRef prop
+            
+            eval' (Operator "()" (callee:args)) =
+                do callee <- eval callee
+                   mapM evalValue args >>= call callee
+            
+            eval' (Operator "new" (klass:args)) =
+                do klass <- getValue =<< eval klass
+                   args <- mapM evalValue args
+                   construct klass args
+            
+            eval' (Operator "++" [x]) =
+                eval $ Let x (Operator "+" [x, Literal $ Number $ Integer 1])
+
+            eval' (Operator "_++" [x]) =
+                do value <- readRef =<< evalValue x
+                   eval $ Operator "++" [x]
+                   return value
+
+            eval' (Operator "--" [x]) =
+                eval $ Let x (Operator "-" [x, Literal $ Number $ Integer 1])
+
+            eval' (Operator "_--" [x]) =
+                do value <- readRef =<< evalValue x
+                   eval $ Operator "--" [x]
+                   return value
+
+            eval' (Operator "&&" [a, b]) =
+                ifM (toBoolean =<< eval a)
+                    (eval b)
+                    (eval a)
+
+            eval' (Operator "||" [a, b]) =
+                ifM (toBoolean =<< eval a)
+                    (eval a)
+                    (eval b)
+
+            eval' (Operator "?:" [c, t, e]) =
+                ifM (toBoolean =<< eval c)
+                    (eval t)
+                    (eval e)
+
+            eval' (Operator op exprs) =
+                if elem op ["*=", "/=", "%=", "+=", "-=", "<<=", ">>=", ">>>=", "&=", "^=", "|="]
+                   then eval $ Let (head exprs) (Operator (init op) (tail exprs))
+                   else do args <- mapM eval exprs
+                           evalOperator op args
+            
+            eval' (ArrayLiteral exprs) =
+                do items <- mapM evalValue exprs
+                   makeNewArray items
+            
+            eval' (ObjectLiteral pairs) =
+                do object <- makeNewObject
+                   forM pairs $ \(n,e) -> do
+                        n <- toString =<< eval n
+                        p <- getValue =<< eval e
+                        object ! n <~ p
+                   return object
+
+            eval' (RegExpLiteral pattern flags) =
+                new "RegExp" [String pattern, String flags]
+            
+            eval' (List []) =
+                return Void
+            
+            eval' (List exprs) =
+                liftM last $ mapM evalValue exprs
+            
+            eval' (Let left right) =
+                do left <- eval left
+                   value <- getValue =<< eval right
+                   putValue left value
+                   return value
+            
+            eval' (Literal num@(Number _)) =
+                return $ tidyNumber num
+            
+            eval' (Literal obj@Object { objObject = func@Function { } }) =
+                do frames <- liftM envFrames getEnv
+                   protoObj <- makeNewObject
+                   return $ obj {
+                           objPropMap = mkPropMap [("prototype", protoObj, [])],
+                           objObject = func { funcScope = frames }
+                        }
+
+            eval' (Literal value) =
+                return value
+            
+            eval' expr =
+                return $ String $ show expr
 -- }}}
 
 -- Operator {{{
@@ -354,16 +363,18 @@ callWithThis this ref@Ref { } args =
 
 callWithThis this ref@Reference { } args =
     do callee <- getValue ref
+       evaluatee <- liftM envEvaluatee getEnv
        ifM (toBoolean callee)
            (callWithThis this callee args)
-           (throw "TypeError" $ getName ref ++ " is not a function")
+           (throw "TypeError" $ show evaluatee ++ " is not a function")
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
     do method <- readRef =<< getProp object name
+       evaluatee <- liftM envEvaluatee getEnv
        if isFunction method || isNativeFunction method
           then callWithThis object method args
-          else throw "TypeError" $ getName object ++ "." ++ name ++ " is not a function"
+          else throw "TypeError" $ show evaluatee ++ " is not a function"
 
 -- 末尾再帰用
 jumpToFunc :: Value -> [Value] -> Evaluate Value
@@ -458,3 +469,9 @@ defaultValue object hint =
                             if isPrimitive result
                                then return $ Just result
                                else return Nothing
+
+try :: Evaluate a -> Evaluate ()
+try thunk =
+    do e <- withCC CThrow $ do { thunk; return Void }
+       unless (isVoid e)
+              (toString e >>= liftIO . ePutStrLn)
