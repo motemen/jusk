@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
-module Operator (OperatorDef (..), operatorsTable, comparisonOp) where
+module Operator where
 import Monad
 import Data.Bits
 

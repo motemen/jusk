@@ -1,6 +1,6 @@
 SRC = *.hs
 
-FLAGS = -W -O
+FLAGS = -W
 
 all: js
 
