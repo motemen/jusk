@@ -89,10 +89,10 @@ withCC ct proc =
 
 returnCont :: ContType -> Value -> Evaluate Value
 returnCont ct value =
-    do debug $ "returnCont: " ++ show ct ++ " " ++ show value
-       cont <- popCont
+    do cont <- popCont
        if contType cont == ct
-          then do modifyScope $ contScope cont
+          then do debug $ "returnCont: " ++ show ct ++ " " ++ show value
+                  modifyScope $ contScope cont
                   (contRecv cont) value
           else returnCont ct value
 

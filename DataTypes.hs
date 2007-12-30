@@ -4,11 +4,11 @@
     Haskell内部の型
 -}
 
-module DataTypes (module DataTypes, Control.Monad.Trans.liftIO) where
+module DataTypes (module DataTypes, liftIO) where
 import Data.Map (Map, assocs)
 import qualified Data.Map as Map
 import Data.IORef
-import System.IO.Unsafe
+import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.Trans (liftIO)
 import Control.Monad.State
 import Control.Monad.Cont hiding (Cont)
@@ -36,18 +36,16 @@ type Evaluate a
     = ContT Value (StateT Env IO) a
 
 data Env
-    = Env { envFrames :: [Frame], envContStack :: [Cont], envFlags :: [Flag], envEvaluatee :: Expression }
+    = Env { envFrames :: [Frame], envContStack :: [Cont], envFlags :: [Flag] }
 
 instance Show Env where
-    show (Env { envFrames = frames, envContStack = conts, envFlags = flags, envEvaluatee = evaluatee }) =
+    show (Env { envFrames = frames, envContStack = conts, envFlags = flags }) =
         "  Frames:\n" ++
         (unlines $ map ("    " ++) $ map show frames) ++
         "  Cont:\n" ++
         (unlines $ map ("    " ++) $ map show conts) ++
         "  Flags:\n    " ++
-        (unwords $ map show flags) ++
-        "  Evaluatee:\n    " ++
-        show evaluatee
+        (unwords $ map show flags)
 
 data Frame
     = GlobalFrame { frObject :: Value, frThis :: Value }
@@ -233,9 +231,9 @@ instance Eq Number where
     NaN == _ = False
     _ == NaN = False
     (Integer n) == (Integer m) = n == m
-    (Double n) == (Double m) = n == m
-    (Integer n) == (Double m) = (toEnum $ fromEnum n) == m
-    (Double n) == (Integer m) = n == (toEnum $ fromEnum m)
+    (Double n)  == (Double m)  = n == m
+    (Integer n) == (Double m)  = (toEnum $ fromEnum n) == m
+    (Double n)  == (Integer m) = n == (toEnum $ fromEnum m)
 
 data PropertyPair
     = PropertyPair { propValue :: Value, propAttr :: [PropertyAttribute] }
@@ -321,7 +319,7 @@ nullFunction = Function {
 nullNativeFunc :: NativeObject
 nullNativeFunc = NativeFunction {
         funcArity     = 0,
-        funcNatCode   = undefined
+        funcNatCode   = error "nullNativeFunc: undefined funcNatCode"
     }
 
 nativeFunc :: String -> Int -> NativeCode -> Value
@@ -431,7 +429,7 @@ getName _ = ""
 toDouble :: Number -> Double
 toDouble (Integer n) = fromIntegral n
 toDouble (Double n)  = n
-toDouble NaN = undefined
+toDouble NaN = error "toDouble: NaN"
 
 instance ToValue Int where
     toValue n = Number $ Integer $ toEnum n
@@ -566,6 +564,15 @@ instance Show Expression where
               else showParen True
                              (foldl1 (\x y -> x . showString "," . y) $ map shows args))
 
+    showsPrec p (Operator op@"?:" [x, y, z])
+        = showParen (prec < p)
+        $ showsPrec prec x
+        . showString " ? "
+        . showsPrec prec y
+        . showString " : "
+        . showsPrec prec z
+        where prec = fromMaybe (length opPrecedence) (findIndex (op `elem`) opPrecedence)
+
     showsPrec p (Operator op [x, y])
         = showParen (prec < p)
         $ showsPrec prec x
@@ -575,23 +582,44 @@ instance Show Expression where
         . showsPrec prec y
         where prec = fromMaybe (length opPrecedence) (findIndex (op `elem`) opPrecedence)
 
+    showsPrec p (Operator op [x])
+        = showParen (prec < p)
+        $ showString op
+        . showString " "
+        . showsPrec prec x
+        where prec = fromMaybe (length opPrecedence) (findIndex (op `elem`) opPrecedence)
+
+    showsPrec _ (Operator _ _)
+        = error "showPrec: unknown operator"
+
+    {-
     showsPrec p (Operator op xs)
         = showParen (prec < p)
         $ showString op
         . showString " "
         . showList xs
         where prec = fromMaybe (length opPrecedence) (findIndex (op `elem`) opPrecedence)
+    -}
 
     showsPrec _ (Let left right) = showString $ show left ++ " = " ++ show right
 
 opPrecedence :: [[String]]
-opPrecedence = [
+opPrecedence = reverse [
         ["[]", "new"],
         ["()"],
         ["_++", "_--"],
         ["delete", "void", "typeof", "++", "--", "+", "-", "~", "!"],
         ["*", "/", "%"],
-        ["+", "-"]
+        ["+", "-"],
+        ["<<", ">>", ">>>"],
+        ["<", ">", "<=", ">=", "instanceof", "in"],
+        ["==", "!=", "===", "!=="],
+        ["&"],
+        ["^"],
+        ["|"],
+        ["&&"],
+        ["||"],
+        ["?:"]
     ]
 
 showObjPair (p, v) = show p ++ ": " ++ show v
@@ -765,7 +793,7 @@ instance Inspect Statement where
         = "STThrow " ++ inspect expr
 
     inspect (STTry { tryClause = clause, tryCatchClause = catch, tryFinallyClause = finally })
-        = "STTry " ++ inspect clause ++ inspect catch ++ inspect finally
+        = "STTry " ++ inspect clause ++ " " ++ inspect catch ++ " " ++ inspect finally
 
 inspectShallow :: Value -> String
 inspectShallow (Object { objName = "" })   = "<Object ...>"

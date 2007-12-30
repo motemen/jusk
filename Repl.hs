@@ -33,7 +33,7 @@ runRepl' =
                   liftIO $ putStrLn string
                   env <- getEnv
                   when (Debug `elem` envFlags env)
-                       (liftIO $ putStrLn $ inspect value))
+                       (liftIO $ putStrLn $ "-> " ++ inspect value))
        runRepl'
        where evalWithMoreInput input =
                  case parse input of

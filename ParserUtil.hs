@@ -353,5 +353,5 @@ p `ifFail` x = option x p
 
 pushArg :: Expression -> Expression -> Expression
 pushArg expr (Operator op args) = Operator op (expr:args)
-pushArg _ _ = undefined
+pushArg _ _ = error "pushArg: non operator pushed"
 -- }}}

@@ -11,8 +11,6 @@ import List
 import Maybe
 import qualified Data.Map as Map
 import Control.Monad.Cont hiding (Cont)
-import Control.Monad.State (put)
-import System.IO.Unsafe
 
 import DataTypes
 import {-# SOURCE #-} Operator
@@ -29,7 +27,7 @@ evalProgram program =
        if null program || ParseOnly `elem` envFlags env
           then return Void
           else if (Debug `elem` envFlags env)
-                  then liftM last $ mapM (\e -> do { liftIO $ ePutStrLn $ inspect e; eval e }) program
+                  then liftM last $ mapM (\e -> do { liftIO $ ePutStrLn $ "parsed: " ++ inspect e; eval e }) program
                   else liftM last $ mapM eval program
 
 instance Eval Statement where
@@ -192,10 +190,8 @@ evalValue x = getValue =<< eval x
 -- Reference (Ref baseRef, p) の形になるまで評価する
 instance Eval Expression where
     eval expr =
-        do env <- getEnv
-           unless (isLiteral expr)
-                  (do put env { envEvaluatee = expr }
-                      debug $ show expr)
+        do unless (isLiteral expr)
+                  (debug $ "eval: " ++ show expr)
            eval' expr
         where
             eval' (Identifier name) =
@@ -363,18 +359,19 @@ callWithThis this ref@Ref { } args =
 
 callWithThis this ref@Reference { } args =
     do callee <- getValue ref
-       evaluatee <- liftM envEvaluatee getEnv
        ifM (toBoolean callee)
            (callWithThis this callee args)
-           (throw "TypeError" $ show evaluatee ++ " is not a function")
+           (throw "TypeError" $ show callee ++ " is not a function")
+
+callWithThis _ value _ =
+    throw "TypeError" $ show value ++ " is not a function"
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
     do method <- readRef =<< getProp object name
-       evaluatee <- liftM envEvaluatee getEnv
        if isFunction method || isNativeFunction method
           then callWithThis object method args
-          else throw "TypeError" $ show evaluatee ++ " is not a function"
+          else throw "TypeError" $ show method ++ " is not a function"
 
 -- 末尾再帰用
 jumpToFunc :: Value -> [Value] -> Evaluate Value
