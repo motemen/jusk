@@ -368,10 +368,11 @@ callWithThis _ value _ =
 
 callMethod :: Value -> String -> [Value] -> Evaluate Value
 callMethod object name args =
-    do method <- readRef =<< getProp object name
+    do debug $ "callMethod: " ++ show object ++ " " ++ name ++ " " ++ show args
+       method <- readRef =<< getProp object name
        if isFunction method || isNativeFunction method
           then callWithThis object method args
-          else throw "TypeError" $ show method ++ " is not a function"
+          else throw "TypeError" $ getName object ++ "." ++ name ++ " is not a function"
 
 -- 末尾再帰用
 jumpToFunc :: Value -> [Value] -> Evaluate Value
