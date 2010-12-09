@@ -643,8 +643,14 @@ instance Show Value where
     show (Object { objName = name, objObject = Function { funcParam = params, funcBody = body } }) =
         "function" ++ (if null name then "" else " " ++ name) ++ "(" ++ params `joinBy` "," ++ ") " ++ show body
 
+    show (Object { objName = name }) | length name > 0 =
+        "<object " ++ name ++ ">"
+
+    show (Object { objName = "", objClass = className }) =
+        "<object of class " ++ className ++ ">"
+
     show _ =
-        ""
+        "<object>"
 
 -- Inspecting
 class Inspect a where

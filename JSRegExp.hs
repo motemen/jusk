@@ -1,6 +1,6 @@
 {-
     JSRegExp.hs
-    ³‹K•\Œ»‚ÌƒTƒ|[ƒg
+    æ­£è¦è¡¨ç¾ã®ã‚µãƒãƒ¼ãƒˆ
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-10_RegExp_Objects.html
 -}
 

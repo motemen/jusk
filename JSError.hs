@@ -1,6 +1,6 @@
 {-
     JSError.hs
-    Error ƒIƒuƒWƒFƒNƒg
+    Error ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
     http://www2u.biglobe.ne.jp/~oz-07ams/prog/ecma262r3/15-11_Error_Objects.html
 -}
 

@@ -8,11 +8,13 @@ module JSArray where
 import Prelude hiding (toInteger)
 import Monad hiding (join)
 import List (intersperse)
+import Control.Monad hiding (join)
 
 import DataTypes
 import Internal
 import Eval
 import Operator
+import Context
 
 -- Array.prototype
 prototypeObject :: Value
@@ -31,7 +33,8 @@ prototypeObject =
                 ("slice",       slice,          2),
                 ("sort",        sort,           1),
                 ("splice",      splice,         2),
-                ("unshift",     unshift,        1)
+                ("unshift",     unshift,        1),
+                ("forEach",     forEachMethod,  2)
             ]
     }
 
@@ -252,3 +255,22 @@ toSourceMethod this _ =
                 -> do srcArray <- mapM (\o -> callMethod o "toSource" [] >>= toString) array
                       return $ toValue $ "[" ++ (concat $ intersperse "," srcArray) ++ "]"
             _ -> throw "NotImplemented" $ "Array.prototype.toSource: " ++ show this
+
+-- Array.prototype.forEach
+forEachMethod :: NativeCode
+forEachMethod thisRef (callbackFn:thisObject:_) =
+    do this <- readRef thisRef
+       case this of
+            object@Object { objObject = Array array } ->
+                do forM [0 .. length array - 1] 
+                        (\i -> callWithThis this callbackFn [ array !! i, toValue i, this ])
+                   return Void
+            _ -> do throw "NotImplemented" $ "Array.prototype.forEach: " ++ show this
+                    return Void
+
+forEachMethod thisRef [ callbackFn ] =
+    do global <- getGlobal
+       forEachMethod thisRef [ callbackFn, global ]
+
+forEachMethod thisRef [] =
+    forEachMethod thisRef [ Undefined ]

@@ -82,6 +82,9 @@ instance Eval Statement where
                           evalWhileBlock value)
                       (return lastValue)
               
+    eval (STFor initialize (List []) update block) =
+        eval (STFor initialize (Literal $ toValue True) update block)
+
     eval (STFor initialize condition update block) =
         withCC (CBreak Nothing)
                (do eval initialize

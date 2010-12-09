@@ -4,7 +4,7 @@
 -}
 
 module Init where
-import Prelude hiding (break)
+import Prelude hiding (break, isNaN)
 import IO
 import Control.Monad.State
 import Data.IORef
@@ -88,6 +88,7 @@ defineBuiltInFuncs =
        defineVar "load"         (nativeFunc "load"      1 load)
        defineVar "exit"         (nativeFunc "exit"      0 exit)
        defineVar "print"        (nativeFunc "print"     1 printLn)
+       defineVar "isNaN"        (nativeFunc "isNaN"     1 isNaN)
        defineVar "__env__"      (mkObjWithGetter env)
        defineVar "__break__"    (mkObjWithGetter break)
        defineVar "__inspect__"  (nativeFunc "__inspect__"   1 nativeInspect)
@@ -113,6 +114,12 @@ evalFunc _ (x:_) =
                                then return Undefined
                                else return result
             _ -> return x
+
+isNaN _ [Number NaN] =
+    return $ toValue True
+
+isNaN _ _ =
+    return $ toValue False
 
 load _ args =
     liftM last $ mapM loadFile args
