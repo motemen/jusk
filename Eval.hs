@@ -7,8 +7,8 @@
 
 module Eval (module Eval, module JSType) where
 import IO
-import List
-import Maybe
+import Data.List
+import Data.Maybe
 import qualified Data.Map as Map
 import Control.Monad.Cont hiding (Cont)
 
@@ -301,14 +301,14 @@ instance Eval Expression where
 evalOperator :: String -> [Value] -> Evaluate Value
 evalOperator op [x] =
     maybe (throw "NotImplemented" $ "operator " ++ op)
-          (\op -> liftM tidyNumber $ opUnaryFunc op x)
+          (\opDef -> liftM tidyNumber $ opUnaryFunc' opDef x)
           (find (isUnaryOp op) operatorsTable)
     where isUnaryOp op (Unary op' _) = op == op'
           isUnaryOp _ _ = False
 
 evalOperator op [x,y] =
     maybe (throw "NotImplemented" $ "operator " ++ op)
-          (\op -> liftM tidyNumber $ opBinaryFunc op x y)
+          (\opDef -> liftM tidyNumber $ opBinaryFunc' opDef x y)
           (find (isBinaryOp op) operatorsTable)
     where isBinaryOp op (Binary op' _) = op == op'
           isBinaryOp _ _ = False

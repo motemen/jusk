@@ -13,8 +13,8 @@ import Control.Monad.Trans (liftIO)
 import Control.Monad.State
 import Control.Monad.Cont hiding (Cont)
 import Text.Regex
-import List
-import Maybe
+import Data.List
+import Data.Maybe
 
 data Flag
     = Debug

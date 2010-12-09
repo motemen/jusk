@@ -11,6 +11,10 @@ import Internal
 data OperatorDef = Unary   { opName :: String, opUnaryFunc :: Value -> Evaluate Value }
                  | Binary  { opName :: String, opBinaryFunc :: Value -> Value -> Evaluate Value }
 
+-- hmm
+opUnaryFunc' = opUnaryFunc
+opBinaryFunc' = opBinaryFunc
+
 operatorsTable :: [OperatorDef]
 operatorsTable = [
         Unary "typeof" $ typeOf,

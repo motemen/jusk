@@ -4,8 +4,11 @@ module Operator where
 
 import DataTypes
 
-data OperatorDef = Unary   { opName :: String, opUnaryFunc :: (Value -> Evaluate Value) }
-              | Binary  { opName :: String, opBinaryFunc :: (Value -> Value -> Evaluate Value) }
+data OperatorDef = Unary   { opName :: String, opUnaryFunc :: Value -> Evaluate Value }
+                 | Binary  { opName :: String, opBinaryFunc :: Value -> Value -> Evaluate Value }
+
+opUnaryFunc' :: OperatorDef -> Value -> Evaluate Value
+opBinaryFunc' :: OperatorDef -> Value -> Value -> Evaluate Value
 
 operatorsTable :: [OperatorDef]
 
