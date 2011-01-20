@@ -426,6 +426,12 @@ getName (Reference base name) = getName base ++ "." ++ name
 getName (Ref ref) = getName $ unsafePerformIO $ readIORef ref
 getName _ = ""
 
+getPropName :: Value -> String -> String
+getPropName object name =
+    case getName object of
+         "" -> name
+         s  -> s ++ "." ++ name
+
 toDouble :: Number -> Double
 toDouble (Integer n) = fromIntegral n
 toDouble (Double n)  = n

@@ -375,7 +375,7 @@ callMethod object name args =
        method <- readRef =<< getProp object name
        if isFunction method || isNativeFunction method
           then callWithThis object method args
-          else throw "TypeError" $ getName object ++ "." ++ name ++ " is not a function"
+          else throw "TypeError" $ getPropName object name ++ " is not a function"
 
 -- 末尾再帰用
 jumpToFunc :: Value -> [Value] -> Evaluate Value
@@ -415,7 +415,7 @@ jumpToMethod object name args =
     do method <- readRef =<< getProp object name
        if isFunction method || isNativeFunction method
           then jumpToFuncWithThis object method args
-          else throw "TypeError" $ getName object ++ "." ++ name ++ " is not a function"
+          else throw "TypeError" $ getPropName object name ++ " is not a function"
 
 -- [[Construct]]
 construct :: Value -> [Value] -> Evaluate Value
