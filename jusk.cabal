@@ -13,7 +13,7 @@ Version:             0.0.1
 Synopsis:            Haskell-implemented JavaScript engine
 
 -- A longer description of the package.
--- Description:         
+Description:         Haskell-implemented JavaScript engine
 
 -- URL for the project homepage or repository.
 Homepage:            https://github.com/motemen/jusk
@@ -21,7 +21,7 @@ Homepage:            https://github.com/motemen/jusk
 -- The license under which the package is released.
 License:             MIT
 
--- The file containing the license text.
+-- -- The file containing the license text.
 License-file:        LICENSE
 
 -- The package author(s).
@@ -46,15 +46,17 @@ Build-type:          Simple
 -- Extra-source-files:  
 
 -- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.2
+Cabal-version:       >=1.4
 
 
 Executable jusk
+  hs-source-dirs:      src
+
   -- .hs or .lhs file containing the Main module.
   Main-is:             Main.hs
   
   -- Packages needed in order to build this package.
-  Build-depends:       base >= 4.0,
+  Build-depends:       base >= 4.0 && < 5,
                        haskell98 >= 1.0,
                        mtl >= 2.0,
                        containers >= 0.3,
