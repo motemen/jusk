@@ -95,12 +95,12 @@ singleEscapeCharacter = choice $ zipWith escaped "'\"\\bfnrtv" "'\"\\\b\f\n\r\t\
 
 octEscapeSequence :: Parser Char
 octEscapeSequence = do digits <- try (times 3 digit) <|> try (times 2 digit) <|> times 1 digit
-                       return $ toEnum $ foldr (\b a -> a * 8 + (digitToInt b)) 0 digits
+                       return $ toEnum $ foldl (\a b -> a * 8 + (digitToInt b)) 0 digits
 
 hexEscapeSequence :: Parser Char
 hexEscapeSequence = do char 'x'
                        digits <- times 2 hexDigit
-                       return $ toEnum $ foldr (\b a -> a * 16 + (digitToInt b)) 0 digits
+                       return $ toEnum $ foldl (\a b -> a * 16 + (digitToInt b)) 0 digits
 
 unicodeEscapeSequence :: Parser Char
 unicodeEscapeSequence = do char 'u'
