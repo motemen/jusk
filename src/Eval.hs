@@ -16,6 +16,7 @@ import {-# SOURCE #-} Operator
 import {-# SOURCE #-} JSType
 import {-# SOURCE #-} Internal
 import Context
+import System.Exit
 
 ePutStrLn :: String -> IO ()
 ePutStrLn = hPutStrLn stderr
@@ -474,4 +475,4 @@ try :: Evaluate a -> Evaluate ()
 try thunk =
     do e <- withCC CThrow $ do { thunk; return Void }
        unless (isVoid e)
-              (toString e >>= liftIO . ePutStrLn)
+              (toString e >>= liftIO . ePutStrLn >> liftIO exitFailure)

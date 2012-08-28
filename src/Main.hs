@@ -9,6 +9,7 @@ import IO hiding (try)
 import List
 import System.Environment hiding (getEnv)
 import System.Console.GetOpt
+import System.Exit
 import Control.Monad.State
 import Control.Monad.Cont
 
@@ -33,7 +34,9 @@ runRepl flags =
 evalText :: String -> Evaluate Value
 evalText input =
     case parse input of
-         Left err -> liftIO $ printParseError input err
+         Left err -> liftIO $ do
+             printParseError input err
+             exitFailure -- XXX
          Right program -> evalProgram program
 
 evalFile :: [Flag] -> String -> IO ()
