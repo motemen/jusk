@@ -278,16 +278,16 @@ additiveExpression = chainOperator ["+", "-"] multiplicativeExpression
 
 --- Bitwise Shift Operators
 shiftExpression :: Parser Expression
-shiftExpression = chainOperator ["<<", ">>", ">>>"] additiveExpression
+shiftExpression = chainOperator [">>>", "<<", ">>"] additiveExpression
 
 --- Relational Operators
 relationalExpression :: ParserParameter -> Parser Expression
-relationalExpression AllowIn = chainOperator ["<", ">", "<=", ">=", "instanceof", "in"] shiftExpression
-relationalExpression NoIn    = chainOperator ["<", ">", "<=", ">=", "instanceof"] shiftExpression
+relationalExpression AllowIn = chainOperator ["<=", ">=", "<", ">", "instanceof", "in"] shiftExpression
+relationalExpression NoIn    = chainOperator ["<=", ">=", "<", ">", "instanceof"] shiftExpression
 
 --- Equality Operators
 equalityExpression :: ParserParameter -> Parser Expression
-equalityExpression p = chainOperator ["==", "!=", "===", "!=="] (relationalExpression p)
+equalityExpression p = chainOperator ["===", "!==", "==", "!="] (relationalExpression p)
 
 --- Binary Bitwise Operators
 bitwiseAndExpression, bitwiseXorExpression, bitwiseOrExpression :: ParserParameter -> Parser Expression

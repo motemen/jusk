@@ -249,7 +249,7 @@ number base baseDigit
 reservedOp name =   
    (lexeme $ try $
     do{ string name
-      ; notFollowedBy (oneOf "+-*/%?:&|^<>=") <?> ("end of " ++ show name)
+      ; notFollowedBy (satisfy $ \c -> (name ++ [c]) `elem` reservedOpNames) <?> ("end of " ++ show name)
       }) <?> ""
 
 {-
