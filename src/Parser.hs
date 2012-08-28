@@ -78,12 +78,12 @@ stringChar q = (char '\\' >> escapeSequence)
            <|> (liftM Right $ noneOf (q:"\r\n\f"))
 
 escapeSequence :: Parser (Either Expression Char)
-escapeSequence = liftM Left stringInterpolateSequence
+escapeSequence = liftM Left stringInterpolateSequence -- XXX not in spec
              <|> liftM Right characterEscapeSequence
              <|> liftM Right (do { char '0'; notFollowedBy $ satisfy isDigit; return '\0' })
              <|> liftM Right octEscapeSequence -- Not specified in ECMA-3
              <|> liftM Right hexEscapeSequence
---           <|> unicodeEscapeSequence
+             <|> liftM Right unicodeEscapeSequence
 
 characterEscapeSequence :: Parser Char
 characterEscapeSequence = singleEscapeCharacter
@@ -101,6 +101,11 @@ hexEscapeSequence :: Parser Char
 hexEscapeSequence = do char 'x'
                        digits <- times 2 hexDigit
                        return $ toEnum $ foldr (\b a -> a * 16 + (digitToInt b)) 0 digits
+
+unicodeEscapeSequence :: Parser Char
+unicodeEscapeSequence = do char 'u'
+                           digits <- times 4 hexDigit
+                           return $ toEnum $ foldl (\a b -> a * 16 + (digitToInt b)) 0 digits
 
 stringInterpolateSequence :: Parser Expression
 stringInterpolateSequence =
