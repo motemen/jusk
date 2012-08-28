@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# OPTIONS_GHC -XTypeSynonymInstances #-}
 {-
     DataTypes.hs
     Haskell内部の型
