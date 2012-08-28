@@ -17,6 +17,8 @@ opBinaryFunc' = opBinaryFunc
 
 operatorsTable :: [OperatorDef]
 operatorsTable = [
+        -- TODO delete
+        Unary "void" $ void,
         Unary "typeof" $ typeOf,
 
         Unary  "+"   $ numericUnaryOp id,
@@ -53,6 +55,9 @@ operatorsTable = [
         Binary "|"   $ bitwiseBinaryOp (.|.),
         Binary "^"   $ bitwiseBinaryOp (xor)
     ]
+
+void :: Value -> Evaluate Value
+void _ = return Undefined
 
 typeOf :: Value -> Evaluate Value
 typeOf ref@(Reference object name) =
