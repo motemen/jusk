@@ -125,11 +125,11 @@ lexeme p =
 
 simpleSpace :: Parser ()
 simpleSpace =
-    skipMany1 (oneOf " \t\v\f\b") -- TODO: Unicode char
+    skipMany1 (oneOf " \t\v\f\b")
 
 lineTerminator :: Parser ()
 lineTerminator =
-    do many1 $ oneOf "\r\n"
+    do many1 $ oneOf "\r\n\x2028\x2029"
        updateState $ \st -> st { stSeenLT = True }
 
 oneLineComment :: Parser ()
