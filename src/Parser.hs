@@ -7,8 +7,8 @@
 
 module Parser (module Parser, Text.ParserCombinators.Parsec.ParseError) where
 import Text.ParserCombinators.Parsec hiding(Parser)
-import Monad
-import List
+import Control.Monad
+import Data.List
 import Data.Char (isDigit,digitToInt)
 
 import DataTypes

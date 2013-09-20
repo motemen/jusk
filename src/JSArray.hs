@@ -6,8 +6,8 @@
 
 module JSArray where
 import Prelude hiding (toInteger)
-import Monad hiding (join)
-import List (intersperse)
+import Control.Monad hiding (join)
+import Data.List (intersperse)
 import Control.Monad hiding (join)
 
 import DataTypes

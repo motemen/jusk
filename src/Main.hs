@@ -5,8 +5,8 @@
 -}
 
 module Main where
-import IO hiding (try)
-import List
+import System.IO hiding (try)
+import Data.List
 import System.Environment hiding (getEnv)
 import System.Console.GetOpt
 import System.Exit
