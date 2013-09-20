@@ -5,7 +5,7 @@
 -}
 
 module Main where
-import System.IO hiding (try)
+import System.IO.Error hiding (try)
 import Data.List
 import System.Environment hiding (getEnv)
 import System.Console.GetOpt

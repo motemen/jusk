@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -XRankNTypes #-}
 
 module Operator where
-import Control.Monad
+import Control.Monad hiding (void)
 import Data.Bits
 
 import DataTypes
