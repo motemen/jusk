@@ -5,7 +5,7 @@
 
 module Init where
 import Prelude hiding (break, isNaN)
-import IO
+import System.IO
 import Control.Monad.State
 import Data.IORef
 import qualified Data.Map as Map

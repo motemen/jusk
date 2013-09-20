@@ -4,8 +4,9 @@
 -}
 
 module ParserUtil where
-import List
-import IO hiding (try)
+import Data.List
+import System.IO.Error hiding (try)
+import System.IO
 import Text.ParserCombinators.Parsec hiding (Parser)
 import Text.ParserCombinators.Parsec.Pos
 import Text.ParserCombinators.Parsec.Error

@@ -5,7 +5,7 @@
 module Repl where
 import Control.Monad.Cont
 import Control.Monad.State
-import IO
+import System.IO
 
 import Parser
 import ParserUtil

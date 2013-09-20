@@ -6,8 +6,8 @@
 
 module JSString where
 import Prelude hiding (toInteger)
-import Monad
-import Maybe
+import Control.Monad
+import Data.Maybe
 import Data.Char
 import Text.Regex
 

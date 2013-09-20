@@ -5,7 +5,7 @@
 -}
 
 module JSDate where
-import Monad
+import Control.Monad
 import System.Time
 
 import DataTypes

@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -XTypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-
     DataTypes.hs
     Haskell内部の型

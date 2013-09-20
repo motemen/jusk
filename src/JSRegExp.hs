@@ -5,7 +5,7 @@
 -}
 
 module JSRegExp where
-import Maybe
+import Data.Maybe
 import Text.Regex
 
 import DataTypes

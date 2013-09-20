@@ -23,7 +23,7 @@ module Internal (
 import qualified Data.Map as Map
 import Data.IORef
 import Control.Monad.State
-import Maybe
+import Data.Maybe
 
 import DataTypes
 import Context

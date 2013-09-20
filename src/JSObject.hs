@@ -6,8 +6,8 @@
 
 module JSObject where
 import qualified Data.Map as Map hiding (map)
-import List
-import Monad
+import Data.List
+import Control.Monad
 
 import DataTypes
 import Internal
