@@ -57,7 +57,7 @@ Executable jusk
   
   -- Packages needed in order to build this package.
   Build-depends:       base >= 4.0 && < 5,
-                       haskell98 >= 1.0,
+--                       haskell98 >= 1.0,
                        mtl >= 2.0,
                        containers >= 0.3,
                        parsec >= 2.1,

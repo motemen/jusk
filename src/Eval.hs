@@ -5,7 +5,7 @@
 -}
 
 module Eval (module Eval, module JSType) where
-import IO
+import System.IO
 import Data.List
 import Data.Maybe
 import qualified Data.Map as Map

@@ -5,9 +5,9 @@
 -}
 
 module JSFunction where
-import Monad
+import Control.Monad
 import qualified Data.Map as Map
-import Maybe
+import Data.Maybe
 
 import DataTypes
 import Eval hiding(callMethod)
